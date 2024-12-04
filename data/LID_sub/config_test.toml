@@ -1,0 +1,49 @@
+[task]
+name = "LID_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "LIDSubTask"
+classes = [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "it",
+    "ru",
+]
+epochs = 10
+batch_size = 16
+
+[task.data]
+dataset = "VoxForge"
+csv_path = "data/LID_sub/csv"
+
+[task.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+
+[task.train]
+log_layer_weights = true
+
+[task.dataset.VoxForge]
+type = "VoxForge"
+path = "../../dataset/VoxForge/VoxForge/data"
+
+[task.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "LID_sub"
+notes = "Test run"

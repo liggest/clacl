@@ -1,0 +1,26 @@
+[task]
+name = "KS_CL"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+csv_path = "data/KS_CL/csv"
+data_path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+epochs = 10
+batch_size = 32
+
+[task.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_KS_CL"
+name = "test4_pre_task"
+notes = "test pre task CL for 3 tasks"

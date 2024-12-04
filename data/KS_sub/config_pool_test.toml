@@ -1,0 +1,76 @@
+[task]
+name = "KS_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "KSSubTask"
+classes = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",
+    "nine",
+    "three",
+    "bed",
+    "wow",
+    "happy",
+    "four",
+    "dog",
+    "cat",
+    "five",
+    "tree",
+    "one",
+    "eight",
+    "bird",
+    "seven",
+    "six",
+    "two",
+    "marvin",
+    "sheila",
+    "house",
+    "zero",
+]
+epochs = 10
+batch_size = 32
+
+[task.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CIL/csv"
+
+[task.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+
+head_adaptive_pool = "max"
+head_adaptive_pool_size = 128
+
+[task.train]
+log_layer_weights = true
+
+[task.dataset.SpeechCommands]
+type = "SpeechCommands"
+path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+
+[task.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "KS_sub_max_pool"
+notes = "Test run"

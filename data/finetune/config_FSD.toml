@@ -1,0 +1,54 @@
+[task]
+name = "Finetuning_FSD"
+seed = 42
+
+[task.sub]
+name = "FSD_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "FSDSubTask"
+classes = [
+    "bonafide",
+    "spoof",
+]
+epochs = 4
+batch_size = 16
+
+[task.sub.data]
+dataset = "ASVspoof2019"
+csv_path = "data/FSD_sub/csv"
+
+[task.sub.model]
+e_adapter = "missing"
+l_adapter = "missing"
+head = "tune_all"
+
+[task.sub.train]
+log_layer_weights = false
+
+[task.sub.dataset.ASVspoof2019]
+type = "ASVspoof2019"
+path = "../../dataset/ASVspoof2019/LA"
+
+[task.sub.learning_rate]
+down = 0.0005
+adapter_to_output = 0.0
+adapter_layer_weights = 0.0
+adapter_ff = 0.0
+layer_norm = 0.0
+
+[task.sub.scheduler]
+type = "CosineAnnealingLR"
+T_max = 2
+eta_min = 1e-06
+
+[task.learning_rate]
+down = 0.0005
+encoder = 5e-05
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "FT_FSD_sub"
+notes = "Test run"

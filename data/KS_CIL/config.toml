@@ -1,0 +1,79 @@
+[task]
+name = "KS_CIL"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+epochs = 10
+batch_size = 32
+
+[task.data]
+csv_path = "data/KS_CIL/csv"
+sc_path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+
+[task.model]
+e_adapter = "cl"
+# e_adapter = "tune_all"
+# e_adapter = "missing"
+# l_adapter = "cl"
+l_adapter = "tune_all"
+# l_adapter = "missing"
+head = "cl"
+# head = "tune_all"
+# head = "tune_once"
+# head = "freeze"
+
+[task.task]
+classes = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",
+    "nine",
+    "three",
+    "bed",
+    "wow",
+    "happy",
+    "four",
+    "dog",
+    "cat",
+    "five",
+    "tree",
+    "one",
+    "eight",
+    "bird",
+    "seven",
+    "six",
+    "two",
+    "marvin",
+    "sheila",
+    "house",
+    "zero",
+]
+n_first = 15
+n_rest = 3
+# cil_state = "no"
+cil_state = "average_adapter"
+# cil_state = "max_logit"
+
+[task.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_KS_CIL"
+name = "test_avg_l_adapter_tune_all"
+notes = "Test run. Average adapter. Tune L adapters without CL."

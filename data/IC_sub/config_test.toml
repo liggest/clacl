@@ -1,0 +1,47 @@
+[task]
+name = "IC_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "ICSubTask"
+epochs = 7
+batch_size = 16
+
+[task.data]
+dataset = "FluentSpeechCommands"
+csv_path = "data/IC/csv"
+
+[task.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+
+[task.dataset.FluentSpeechCommands]
+type = "FluentSpeechCommands"
+path = "../../dataset/FluentSpeechCommands"
+
+[task.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "LambdaLR"
+step = [
+    0.1,
+    0.5,
+    0.7,
+    1.0,
+    0.5,
+    0.3,
+    0.1,
+    0.0,
+]
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "IC_sub"
+notes = "Test run"

@@ -1,0 +1,39 @@
+[task]
+name = "ER_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "ERSubTask"
+epochs = 20
+batch_size = 16
+
+[task.data]
+dataset = "IEMOCAP"
+csv_path = "data/ER_sub/csv"
+
+[task.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+
+[task.dataset.IEMOCAP]
+type = "IEMOCAP"
+path = "../../dataset/IEMOCAP"
+
+[task.learning_rate]
+down = 0.0005
+adapter_to_output = 0.0001
+adapter_layer_weights = 0.0001
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "StepLR"
+step_size = 10
+gamma = 0.1
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "ER_sub"
+notes = "Test run"

@@ -1,0 +1,49 @@
+[task]
+name = "AcC_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "AcCSubTask"
+classes = [
+    "american",
+    "australian",
+    "bangla",
+    "british",
+    "indian",
+    "malayalam",
+    "odiya",
+    "telugu",
+    "welsh",
+]
+epochs = 10
+batch_size = 16
+
+[task.data]
+dataset = "AccentDB"
+csv_path = "data/AcC_sub/csv"
+
+[task.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+
+[task.dataset.AccentDB]
+type = "AccentDB"
+path = "../../dataset/AccentDB/accentdb_extended_processed"
+
+[task.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "AcC_sub"
+notes = "Test run"

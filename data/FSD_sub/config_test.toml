@@ -1,0 +1,42 @@
+[task]
+name = "FSD_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "FSDSubTask"
+classes = [
+    "bonafide",
+    "spoof",
+]
+epochs = 8
+batch_size = 16
+
+[task.data]
+dataset = "ASVspoof2019"
+csv_path = "data/FSD_sub/csv"
+
+[task.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+
+[task.dataset.ASVspoof2019]
+type = "ASVspoof2019"
+path = "../../dataset/ASVspoof2019/LA"
+
+[task.learning_rate]
+down = 0.0001
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "FSD_sub_clipping"
+notes = "Test run"

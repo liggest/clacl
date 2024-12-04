@@ -1,0 +1,110 @@
+[task]
+name = "CLSCL_ER_KS"
+seed = 42
+sequence = [
+    "ER_sub",
+    "KS_sub",
+]
+
+[task.dataset.SpeechCommands]
+type = "SpeechCommands"
+path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+
+[task.dataset.IEMOCAP]
+type = "IEMOCAP"
+path = "../../dataset/IEMOCAP"
+
+[task.sub.KS_sub]
+name = "KS_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",
+    "nine",
+    "three",
+    "bed",
+    "wow",
+    "happy",
+    "four",
+    "dog",
+    "cat",
+    "five",
+    "tree",
+    "one",
+    "eight",
+    "bird",
+    "seven",
+    "six",
+    "two",
+    "marvin",
+    "sheila",
+    "house",
+    "zero",
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS_sub.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CIL/csv"
+
+[task.sub.KS_sub.model]
+e_adapter = "cl"
+l_adapter = "cl"
+head = "cl"
+
+[task.sub.KS_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS_sub.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.ER_sub]
+name = "ER_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "ERSubTask"
+epochs = 20
+batch_size = 16
+
+[task.sub.ER_sub.data]
+dataset = "IEMOCAP"
+csv_path = "data/ER_sub/csv"
+
+[task.sub.ER_sub.model]
+e_adapter = "cl"
+l_adapter = "cl"
+head = "cl"
+
+[task.sub.ER_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 0.0001
+adapter_layer_weights = 0.0001
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.ER_sub.scheduler]
+type = "StepLR"
+step_size = 10
+gamma = 0.1
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "ER_KS"
+notes = "Test run"

@@ -1,0 +1,57 @@
+[task]
+name = "Finetuning_LID"
+seed = 42
+
+[task.sub]
+name = "LID_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "LIDSubTask"
+classes = [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "it",
+    "ru",
+]
+epochs = 10
+batch_size = 16
+
+[task.sub.data]
+dataset = "VoxForge"
+csv_path = "data/LID_sub/csv"
+
+[task.sub.model]
+e_adapter = "missing"
+l_adapter = "missing"
+head = "tune_all"
+
+[task.sub.train]
+log_layer_weights = false
+
+[task.sub.dataset.VoxForge]
+type = "VoxForge"
+path = "../../dataset/VoxForge/VoxForge/data"
+
+[task.sub.learning_rate]
+down = 0.0005
+adapter_to_output = 0.0
+adapter_layer_weights = 0.0
+adapter_ff = 0.0
+layer_norm = 0.0
+
+[task.sub.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.learning_rate]
+down = 0.0005
+encoder = 0.0001
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "FT_LID_sub"
+notes = "Test run"

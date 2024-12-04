@@ -1,0 +1,163 @@
+[task]
+name = "CLSCL_test"
+seed = 42
+sequence = [
+    "KS_subA",
+    "KS_subB",
+    "KS_subC",
+]
+
+[task.dataset.SpeechCommands]
+type = "SpeechCommands"
+path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+
+[task.sub.KS_subA]
+name = "KS_subA"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",
+    # "_unknown_",
+    # "_silence_",
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS_subA.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CIL/csv"  # use KS_CIL/csv for test purpose
+
+[task.sub.KS_subA.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+head_adaptive_pool_size = 128
+
+[task.sub.KS_subA.train]
+log_layer_weights = true
+
+[task.sub.KS_subA.learning_rate]
+# down = 0.0005
+down = 1e-05
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS_subA.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+
+[task.sub.KS_subB]
+name = "KS_subB"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "nine", 
+    "three", 
+    "bed", 
+    "wow", 
+    "happy",  # 15
+    # "four", 
+    # "dog", 
+    # "cat",     # 18
+    # "five", 
+    # "tree"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS_subB.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CIL/csv"
+
+[task.sub.KS_subB.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+head_adaptive_pool_size = 128
+
+[task.sub.KS_subB.train]
+log_layer_weights = true
+
+[task.sub.KS_subB.learning_rate]
+# down = 0.0005
+down = 1e-05
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS_subB.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+
+[task.sub.KS_subC]
+name = "KS_subC"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "four", 
+    "dog", 
+    "cat",     # 18
+    "five", 
+    "tree",
+
+    "one",    # 21
+    "eight", 
+    "bird", 
+    "seven", # 24
+    "six", 
+    "two", 
+    "marvin",   # 27
+    "sheila", 
+    "house", 
+    "zero"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS_subC.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CIL/csv"
+
+[task.sub.KS_subC.model]
+e_adapter = "tune_all"
+l_adapter = "tune_all"
+head = "tune_all"
+head_adaptive_pool_size = 128
+
+[task.sub.KS_subC.train]
+log_layer_weights = true
+
+[task.sub.KS_subC.learning_rate]
+# down = 0.0005
+down = 1e-05
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS_subC.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "KS3_FT_pool"
+notes = "Test run"

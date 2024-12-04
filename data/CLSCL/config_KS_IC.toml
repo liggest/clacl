@@ -1,0 +1,121 @@
+[task]
+name = "CLSCL_KS_IC"
+seed = 42
+sequence = [
+    "KS_sub",
+    "IC_sub",
+]
+
+[task.dataset.SpeechCommands]
+type = "SpeechCommands"
+path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+
+[task.dataset.FluentSpeechCommands]
+type = "FluentSpeechCommands"
+path = "../../dataset/FluentSpeechCommands"
+
+[task.sub.KS_sub]
+name = "KS_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",    # 10
+    # # "_unknown_",
+    # # "_silence_",
+    "nine", 
+    "three", 
+    "bed", 
+    "wow", 
+    "happy", # 15
+
+    "four", 
+    "dog", 
+    "cat",      # 18
+    "five", 
+    "tree",
+    "one",      # 21
+    "eight", 
+    "bird", 
+    "seven",    # 24
+    "six", 
+    "two", 
+    "marvin",   # 27
+    "sheila", 
+    "house", 
+    "zero"      # 30
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS_sub.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CIL/csv"
+
+[task.sub.KS_sub.model]
+e_adapter = "cl"
+l_adapter = "cl"
+head = "cl"
+
+[task.sub.KS_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS_sub.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.IC_sub]
+name = "IC_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "ICSubTask"
+epochs = 7
+batch_size = 16
+
+[task.sub.IC_sub.data]
+dataset = "FluentSpeechCommands"
+csv_path = "data/IC/csv"
+
+[task.sub.IC_sub.model]
+e_adapter = "cl"
+l_adapter = "cl"
+head = "cl"
+
+[task.sub.IC_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.IC_sub.scheduler]
+type = "LambdaLR"
+step = [
+    0.1,
+    0.5,
+    0.7,
+    1.0,
+    0.5,
+    0.3,
+    0.1,
+    0.0,
+]
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "KS_IC"
+notes = "Test run"

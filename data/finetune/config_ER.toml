@@ -1,0 +1,50 @@
+[task]
+name = "Finetuning_ER"
+seed = 42
+
+[task.sub]
+name = "ER_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "ERSubTask"
+epochs = 20
+batch_size = 16
+
+[task.sub.data]
+dataset = "IEMOCAP"
+csv_path = "data/ER_sub/csv"
+
+[task.sub.model]
+e_adapter = "missing"
+l_adapter = "missing"
+head = "tune_all"
+
+[task.sub.train]
+log_layer_weights = false
+
+[task.sub.dataset.IEMOCAP]
+type = "IEMOCAP"
+path = "../../dataset/IEMOCAP"
+
+[task.sub.learning_rate]
+down = 0.0005
+adapter_to_output = 0.0
+adapter_layer_weights = 0.0
+adapter_ff = 0.0
+layer_norm = 0.0
+
+[task.sub.scheduler]
+type = "StepLR"
+step_size = 10
+gamma = 0.1
+
+[task.learning_rate]
+down = 0.0005
+encoder = 5e-05
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "FT_ER_sub"
+notes = "Test run"

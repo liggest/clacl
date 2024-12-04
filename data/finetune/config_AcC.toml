@@ -1,0 +1,60 @@
+[task]
+name = "Finetuning_AcC"
+seed = 42
+
+[task.sub]
+name = "AcC_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+seed = 42
+type = "AcCSubTask"
+classes = [
+    "american",
+    "australian",
+    "bangla",
+    "british",
+    "indian",
+    "malayalam",
+    "odiya",
+    "telugu",
+    "welsh",
+]
+epochs = 10
+batch_size = 16
+
+[task.sub.data]
+dataset = "AccentDB"
+csv_path = "data/AcC_sub/csv"
+
+[task.sub.model]
+e_adapter = "missing"
+l_adapter = "missing"
+head = "tune_all"
+
+[task.sub.train]
+log_layer_weights = false
+
+[task.sub.dataset.AccentDB]
+type = "AccentDB"
+path = "../../dataset/AccentDB/accentdb_extended_processed"
+
+[task.sub.learning_rate]
+down = 0.0005
+adapter_to_output = 0.0
+adapter_layer_weights = 0.0
+adapter_ff = 0.0
+layer_norm = 0.0
+
+[task.sub.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.learning_rate]
+down = 0.0005
+encoder = 0.0001
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "FT_AcC_sub"
+notes = "Test run"
