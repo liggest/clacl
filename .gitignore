@@ -167,3 +167,5 @@ wandb/
 *_old.toml
 *dump.toml
 *_old/
+test/
+test*.ipynb
