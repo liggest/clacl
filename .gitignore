@@ -165,4 +165,5 @@ wandb/
 *.bak
 *_old.py
 *_old.toml
+*dump.toml
 *_old/
