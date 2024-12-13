@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from transformers import Wav2Vec2Config, Wav2Vec2FeatureExtractor
 from tqdm import tqdm
 
-from clacl.model.wavml import AdaWavLMForSequenceClassification
+from clacl.model.wavlm import AdaWavLMForSequenceClassification
 from clacl.task.common import WavMLClassificationTask as TaskBase
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import TaskConfig, _init_config

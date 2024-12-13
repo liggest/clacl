@@ -12,6 +12,7 @@ from tqdm import tqdm
 from pydantic import BaseModel, SerializeAsAny
 
 from clacl.model.wavml_cl import AdapterState, AdaptivePoolState
+from clacl.model.wavml_cl import add_task, ensure_task_head, cl_modules
 from clacl.task.common import WavMLClassificationTask as TaskBase, TaskConfig
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import WandbConfig
@@ -37,6 +38,9 @@ class ModelConfig(BaseModel):
     e_adapter: AdapterState = AdapterState.CL
     l_adapter: AdapterState = AdapterState.CL
     head: AdapterState = AdapterState.CL
+
+    layer_weights_only: bool = False
+    # use layer weights without l adapter (follow l_adapter state)
 
     head_adaptive_pool: AdaptivePoolState = AdaptivePoolState.Missing
     head_adaptive_pool_size: int = 0
@@ -149,6 +153,7 @@ class SubTask(TaskBase, Generic[TSubTaskConfig]):
             "e_adapter_state": self.config.model.e_adapter,
             "l_adapter_state": self.config.model.l_adapter,
             "head_state": self.config.model.head,
+            "layer_weights_only": self.config.model.layer_weights_only,
             "head_adaptive_pool": self.config.model.head_adaptive_pool,
             "head_adaptive_pool_size": self.config.model.head_adaptive_pool_size,
         }
@@ -176,17 +181,20 @@ class SubTask(TaskBase, Generic[TSubTaskConfig]):
         # self.model.add_task(self.task_id2name(task_id))
         if not pre_task:
             pre_task = self
-        self.model.add_task(pre_task.name_with_id)
+        # self.model.add_task(pre_task.name_with_id)
+        add_task(self.model, pre_task.name_with_id)
         self._optimizer()
         self._scheduler()
 
     @contextmanager
     def ensure_task_head(self, device: torch.device | None = None):
-        old_task = self.model.ensure_task_head(self.name_with_id, device)
+        # old_task = self.model.ensure_task_head(self.name_with_id, device)
+        old_task = ensure_task_head(self.model, self.name_with_id, device)
         logger.debug(f"Ensure task head for {self.name_with_id}")
         yield
         if old_task:
-            self.model.ensure_task_head(old_task, device)
+            # self.model.ensure_task_head(old_task, device)
+            ensure_task_head(self.model, old_task, device)
             logger.debug(f"Reset task head to {old_task}")
 
 
@@ -282,7 +290,8 @@ class SubTrainer(TrainerBase, Generic[TSubTask]):
         self_task.inherit(target_task)
 
         if self_task.task_id <= target_task.task_id:
-            self_task.model.set_task(self_task.name_with_id)
+            # self_task.model.set_task(self_task.name_with_id)
+            cl_modules.set_task(self_task.name_with_id)
             # test task id > trained task id => use adapter of trained task, except head
         
         self.device = get_device()

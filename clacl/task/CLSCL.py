@@ -8,7 +8,7 @@ from itertools import pairwise
 
 from pydantic import ConfigDict, Field
 
-from clacl.model.wavml_cl import AdapterState
+from clacl.model.wavml_cl import AdapterState, cl_modules
 from clacl.task.common import WavMLClassificationTask as TaskBase
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import TaskConfig, _init_config
@@ -32,33 +32,23 @@ USubTaskConfig = Annotated[
     Field(discriminator="type")  # TODO: add more sub tasks
 ]
 
-class CLSCLConfig(TaskConfig):
-    model_config = ConfigDict(extra = "allow")
+Datasets: dict[str, UDatasetConfig] = {
+    "SpeechCommands": SpeechCommandsConfig(),
+    "FluentSpeechCommands": FluentSpeechCommandsConfig(),
+    "IEMOCAP": IEMOCAPConfig(),
+    "AccentDB": AccentDBConfig(),
+    "VoxForge": VoxForgeConfig(),
+    "ASVspoof2019": ASVspoof2019Config(),
+}
 
-    name: str = "CLSCL"
-    dataset: dict[str, UDatasetConfig] = {
-        "SpeechCommands": SpeechCommandsConfig(),
-        "FluentSpeechCommands": FluentSpeechCommandsConfig(),
-        "IEMOCAP": IEMOCAPConfig(),
-        "AccentDB": AccentDBConfig(),
-        "VoxForge": VoxForgeConfig(),
-        "ASVspoof2019": ASVspoof2019Config(),
-    }
-    model: ModelConfig = ModelConfig(e_adapter=AdapterState.CL, l_adapter=AdapterState.CL, head=AdapterState.CL)
-    train: TrainConfig = TrainConfig()
-
-    sub: dict[str, USubTaskConfig] = {
-        "KS_sub": KSSubConfig(),
-        "IC_sub": ICSubConfig(),
-        "ER_sub": ERSubConfig(),
-        "AcC_sub": AcCSubConfig(),
-        "LID_sub": LIDSubConfig(),
-        "FSD_sub": FSDSubConfig(),
-    }
-    sequence: list[str] = ["KS_sub", "IC_sub", "ER_sub", "AcC_sub", "LID_sub"]
-
-    pretrained_name: str | None = None  # shadow
-    optimizer: str | None = None
+SubConfigs: dict[str, USubTaskConfig] = {
+    "KS_sub": KSSubConfig(),
+    "IC_sub": ICSubConfig(),
+    "ER_sub": ERSubConfig(),
+    "AcC_sub": AcCSubConfig(),
+    "LID_sub": LIDSubConfig(),
+    "FSD_sub": FSDSubConfig(),
+}
 
 SubClasses: dict[str, type[SubTask[TSubTaskConfig]]] = {
     "KSSubTask": KSSubTask,
@@ -68,6 +58,22 @@ SubClasses: dict[str, type[SubTask[TSubTaskConfig]]] = {
     "LIDSubTask": LIDSubTask,
     "FSDSubTask": FSDSubTask,
 }
+
+class CLSCLConfig(TaskConfig):
+    model_config = ConfigDict(extra = "allow")
+
+    name: str = "CLSCL"
+
+    dataset: dict[str, UDatasetConfig] = Datasets
+    
+    model: ModelConfig = ModelConfig(e_adapter=AdapterState.CL, l_adapter=AdapterState.CL, head=AdapterState.CL)
+    train: TrainConfig = TrainConfig()
+
+    sub: dict[str, USubTaskConfig] = SubConfigs
+    sequence: list[str] = ["KS_sub", "IC_sub", "ER_sub", "AcC_sub", "LID_sub"]
+
+    pretrained_name: str | None = None  # shadow
+    optimizer: str | None = None
 
 def _fill_sub_config(sub_config: USubTaskConfig, cl_config: CLSCLConfig):
     sub_config.dataset = cl_config.dataset
@@ -145,17 +151,22 @@ class CLTrainer(TrainerBase):
                 task.inherit(last_task)
             # task.add_module(cl.task_id)
             task.add_module()
-            logger.info(f">> before train: {task.model.classifier.current_task}")
+            last_cl_module = None
+            if last_cl_module := cl_modules.get("head", {}).get("classifier"):
+                logger.info(f">> before train: {last_cl_module.current_task}")
             
             task.train()
 
-            task.model.set_task_grad(freeze=True, f=lambda adapter: adapter.state != AdapterState.TuneAll)
+            # task.model.set_task_grad(freeze=True, f=lambda adapter: adapter.state != AdapterState.TuneAll)
+            cl_modules.set_task_grad(freeze=True, f=lambda adapter, *_: adapter.state != AdapterState.TuneAll)
 
             self.evaluate_all_for(task)
 
             # task.model.set_task(task.task_id2name(task.task_id))
-            task.model.set_task(task.name_with_id)
-            logger.info(f">> after train: {task.model.classifier.current_task}")
+            # task.model.set_task(task.name_with_id)
+            cl_modules.set_task(task.name_with_id)
+            if last_cl_module:
+                logger.info(f">> after train: {last_cl_module.current_task}")
             last_task = task
         
     def evaluate_all_for(self, current_task: SubTask[TSubTaskConfig]):

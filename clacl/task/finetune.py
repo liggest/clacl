@@ -151,6 +151,30 @@ class FinetuningSubTaskWrapper(SubTask[TSubTaskConfig]):
         self._ft = finetuning_task
 
     @property
+    def _raw_config(self):
+        return self._task._raw_config
+    
+    @property
+    def config(self):
+        return self._task.config
+
+    @property
+    def _data_loaders(self):
+        return self._task._data_loaders
+
+    @property
+    def task_id(self):
+        return self._task.task_id
+
+    @task_id.setter
+    def task_id(self, val: int):
+        self._task.task_id = val
+    
+    @task_id.deleter
+    def task_id(self):
+        del self._task.task_id
+
+    @property
     def model_config(self):
         _model_config = self._task.model_config
         # only these parameters can be passed to model
@@ -158,7 +182,8 @@ class FinetuningSubTaskWrapper(SubTask[TSubTaskConfig]):
             "id2label": _model_config["id2label"],
             "label2id": _model_config["label2id"],
             "num_labels": _model_config["num_labels"],
-            "classifier_proj_size": _model_config["classifier_proj_size"]
+            "classifier_proj_size": _model_config["classifier_proj_size"],
+            "use_weighted_layer_sum": _model_config["layer_weights_only"]
         }
 
     def _model(self):
@@ -190,6 +215,7 @@ class FinetuningSubTaskWrapper(SubTask[TSubTaskConfig]):
         return self._task._scheduler()
 
     def __getattr__(self, name: str):
+        # logger.debug(f"__getattr__: {name!r}")
         return getattr(self._task, name)
     
     def __setattr__(self, name: str, value):
@@ -203,6 +229,9 @@ class FinetuningSubTaskWrapper(SubTask[TSubTaskConfig]):
             super().__delattr__(name)
         else:
             delattr(self._task, name)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self._task!r}, {self._ft!r})"
 
 def edit_model(model: WavLMForSequenceClassification):
     down_param = []

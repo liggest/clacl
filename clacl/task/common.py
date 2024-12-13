@@ -9,7 +9,7 @@ from torch.optim import Adam, Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 from pydantic import BaseModel
 
-from clacl.model.wavml import AdaWavLMForSequenceClassification
+from clacl.model.wavlm import AdaWavLMForSequenceClassification
 from clacl.data.common import PDataLoaders
 from clacl.config import file_config_base
 

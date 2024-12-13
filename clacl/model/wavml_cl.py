@@ -1,10 +1,7 @@
 
 from typing import Callable, Iterable
-# from collections import OrderedDict
-# from functools import cached_property
 from itertools import chain
 from enum import Enum
-import warnings
 
 import torch
 import torch.nn as nn
@@ -22,15 +19,11 @@ from transformers.models.wavlm.modeling_wavlm import (
     WavLMForSequenceClassification
 )
 
-from clacl.model.wavml import CustomWavLMConfig
-from clacl.model.wavml import AdaPreTrainedModelOverride, AdapterLayer, AdapterToOutputLayer
-
-class AdapterState(str, Enum):
-    Missing = "missing"
-    Freeze = "freeze"
-    TuneOnce = "tune_once"
-    TuneAll = "tune_all"
-    CL = "cl"
+from clacl.model.wavlm import CustomWavLMConfig
+from clacl.model.wavlm import AdaPreTrainedModelOverride, AdapterLayer, AdapterToOutputLayer
+from clacl.model.cl import AdapterState
+from clacl.model.cl import CLManager, CLAdapter, CLParameter, CLModule
+from clacl.model.cl import not_special_task
 
 class AdaptivePoolState(str, Enum):
     Missing = "missing"
@@ -44,6 +37,8 @@ class CLWavLMConfig(CustomWavLMConfig):
         self.l_adapter_state = AdapterState(kw.pop("l_adapter_state", AdapterState.CL))
         self.head_state = AdapterState(kw.pop("head_state", AdapterState.CL))
 
+        self.layer_norm_state = AdapterState(kw.pop("layer_norm_state", AdapterState.CL))
+
         # self.use_e_adapter = (self.e_adapter_state != AdapterState.Missing)
         # self.use_l_adapter = (self.l_adapter_state != AdapterState.Missing) or self.use_l_adapter
 
@@ -53,6 +48,8 @@ class CLWavLMConfig(CustomWavLMConfig):
         # self.use_cl_head = (self.head_state != AdapterState.Missing)
 
         # self.use_cl_init_only = False
+
+        self.layer_weights_only: bool = kw.pop("layer_weights_only", False)
 
         self.head_adaptive_pool: AdaptivePoolState = AdaptivePoolState(kw.pop("head_adaptive_pool", AdaptivePoolState.Missing))
         self.head_adaptive_pool_size: int = kw.pop("head_adaptive_pool_size", 0)
@@ -71,138 +68,22 @@ class CLWavLMConfig(CustomWavLMConfig):
             self.use_l_adapter = False
 
     @property
+    def layer_weights_only(self):
+        return self.layer_weights_only_
+    
+    @layer_weights_only.setter
+    def layer_weights_only(self, val):
+        self.layer_weights_only_ = bool(val)
+        if self.layer_weights_only_:
+            self.output_hidden_size = self.hidden_size
+
+    @property
     def use_adaptive_pool(self):
         return self.head_adaptive_pool != AdaptivePoolState.Missing
 
 AdaPreTrainedModelOverride.config_class = CLWavLMConfig
 
-def not_special_task(task_name: str):
-    return not task_name.startswith("_")
-
-class CLAdapter(nn.Module):            
-
-    def __init__(self, factory: Callable[[str, CLWavLMConfig], nn.Module], state=AdapterState.CL):
-        super().__init__()
-        self.adapters = self._init_adapters()
-        self._current_task: str | None = None
-        self.module_factory = factory
-        self.state = state
-        self._previous_task: str | None = None
-
-    def _init_adapters(self):
-        return nn.ModuleDict()
-
-    @property
-    def current_task(self):
-        return self._current_task
-    
-    @current_task.setter
-    def current_task(self, val: str | None):
-        self._previous_task = self._current_task
-        self._current_task = val
-
-    def add_adapter(self, task_name: str, config: CLWavLMConfig):
-        if (self.state == AdapterState.TuneOnce and self.current_task):
-            self.set_grad(self.current_task, freeze=True)
-        
-        if (not_special_task(task_name)
-                and self.adapters 
-                and self.state != AdapterState.CL):
-            return  # only one module
-
-        adapter = self.module_factory(task_name, config)
-        self.set_adapter(task_name, adapter)
-
-        if (self.state == AdapterState.Freeze):
-            self.set_grad(task_name, freeze=True)
-
-    def set_adapter(self, task_name: str, adapter: nn.Module):
-        if (not_special_task(task_name)
-                and self.adapters 
-                and self.state != AdapterState.CL 
-                and task_name not in self.adapters):
-            return  # only one module
-        
-        # self.previous_task = self.current_task
-        self.adapters[task_name] = adapter
-        self.current_task = task_name
-
-    def set_grad(self, task_name: str | None = None, freeze=True):
-        if task_name is None:
-            task_name = self.current_task
-        assert task_name
-        self.adapters[task_name].requires_grad_(not freeze)
-
-    def forward(self, hidden_states):
-        if not self.current_task:
-            warnings.warn(f"{self.current_task = !r} in {self!r}")
-            return hidden_states
-        return self.adapters[self.current_task](hidden_states)
-    
-    def average_adapter(self, config: CLWavLMConfig):
-        task_name = "_average_"
-        if self.current_task == task_name:
-            return
-        if self.state != AdapterState.CL:
-            return
-        if (task_name not in self.adapters):
-            self.add_adapter(task_name, config)  # will also change current task
-        else:
-            self.set_adapter(task_name, self.adapters[task_name])
-        self.set_grad(task_name, freeze=True)
-        average = self.adapters[task_name]
-        if self._previous_task:
-            previous_device = next(self.adapters[self._previous_task].parameters()).device
-            average.to(previous_device)
-        average_state = average.state_dict()
-        states = [adapter.state_dict() for t_name, adapter in self.adapters.items() if not_special_task(t_name)]
-        n = len(states)
-        for key in average_state:
-            average_state[key] = sum(state[key] for state in states) / n
-        average.load_state_dict(average_state)
-
-
-class CLParameter(nn.Module):
-
-    def __init__(self, factory: Callable[[str, CLWavLMConfig], nn.Parameter], state=AdapterState.CL):
-        super().__init__() 
-        self.adapters = self._init_adapters()
-        self._current_task: str | None = None
-        self.module_factory = factory
-        self.state = state
-        self._previous_task: str | None = None
-
-    def _init_adapters(self):
-        return nn.ParameterDict()
-
-    current_task = CLAdapter.current_task
-
-    add_adapter = CLAdapter.add_adapter
-    set_adapter = CLAdapter.set_adapter
-    set_grad = CLAdapter.set_grad
-
-    def forward(self) -> nn.Parameter:
-        assert self.current_task, f"{self.current_task = !r} in {self!r}"
-        return self.adapters[self.current_task]
-
-    def average_adapter(self, config: CLWavLMConfig):
-        task_name = "_average_"
-        if self.current_task == task_name:
-            return
-        if self.state != AdapterState.CL:
-            return
-        if (task_name not in self.adapters):
-            self.add_adapter(task_name, config)  # will also change current task
-        else:
-            self.set_adapter(task_name, self.adapters[task_name])
-        self.set_grad(task_name, freeze=True)
-        average: nn.Parameter = self.adapters[task_name]
-        if self._previous_task:
-            previous: nn.Parameter = self.adapters[self._previous_task]
-            average.to(previous.device)
-        tensors = [adapter.data for t_name, adapter in self.adapters.items() if not_special_task(t_name)]
-        n = len(tensors)
-        average.data = sum(tensors) / n
+cl_modules = CLManager("wavlm_cl")
 
 def new_e_adapter(task_name: str, config: CustomWavLMConfig):
     adapter = AdapterLayer(config)
@@ -217,6 +98,7 @@ def new_l_adapter(task_name: str, config: CustomWavLMConfig):
 def new_adapter_to_output_layer_weights(task_name: str, config: CustomWavLMConfig):
     num_adapter_to_output_layers = config.num_hidden_layers
     adapter_to_output_layer_weights = nn.Parameter(torch.ones(num_adapter_to_output_layers) / num_adapter_to_output_layers)
+    # length = 12, not same with WavLMForSequenceClassification.layer_weights (length = 13)
     config.layerdrop = 0.0  # Don't use LayerDrop at here
     return adapter_to_output_layer_weights
 
@@ -228,7 +110,7 @@ class AdaWavLMEncoderLayer(WavLMEncoderLayer):
         if config.e_adapter_state == AdapterState.Missing:
             self.adapter_layer_ff = lambda x: x
         else:
-            self.adapter_layer_ff = CLAdapter(new_e_adapter, config.e_adapter_state)
+            self.adapter_layer_ff = CLAdapter(new_e_adapter, config.e_adapter_state).manage_by(cl_modules, "e_adapter")
 
     def forward(self, hidden_states, attention_mask=None, position_bias=None, output_attentions=False, index=0):
         attn_residual = hidden_states
@@ -268,21 +150,29 @@ def _encoders_gen(config: CustomWavLMConfig):
 
 class AdaLayerToOutWavLMEncoder(WavLMEncoder):
 
+    @property
+    def use_l_adapter(self):
+        return self.config.l_adapter_state != AdapterState.Missing
+
+    @property
+    def use_layer_weights_only(self):
+        return self.config.layer_weights_only
+
     def __init__(self, config: CLWavLMConfig):
         super().__init__(config)
         self.config: CLWavLMConfig
 
         if config.e_adapter_state != AdapterState.Missing:
             self._edit_layers()
-        
-        self.use_l_adapter = (config.l_adapter_state != AdapterState.Missing)
+
         if self.use_l_adapter:
-            num_adapter_to_output_layers = config.num_hidden_layers
-            self.adapter_to_output = nn.ModuleDict({
-                str(layer): CLAdapter(new_l_adapter, config.l_adapter_state)
-                for layer in range(num_adapter_to_output_layers)
-            })
-            self._adapter_to_output_layer_weights = CLParameter(new_adapter_to_output_layer_weights, config.l_adapter_state)
+            if not self.use_layer_weights_only:
+                num_adapter_to_output_layers = config.num_hidden_layers
+                self.adapter_to_output = nn.ModuleDict({
+                    str(layer): CLAdapter(new_l_adapter, config.l_adapter_state).manage_by(cl_modules, "l_adapter")
+                    for layer in range(num_adapter_to_output_layers)
+                })
+            self._adapter_to_output_layer_weights = CLParameter(new_adapter_to_output_layer_weights, config.l_adapter_state).manage_by(cl_modules, "l_adapter", "layer_weights")
             # self.adapter_to_output_layer_weights = nn.Parameter(torch.ones(num_adapter_to_output_layers) / num_adapter_to_output_layers)
             # config.layerdrop = 0.0
             # Don't use LayerDrop at here
@@ -301,18 +191,21 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
         return self._adapter_to_output_layer_weights()
 
     def _cl_e_adapter_gen(self) -> Iterable[CLAdapter]:
-        if self.config.e_adapter_state == AdapterState.Missing:
-            return
-        for layer in self.layers:
-            layer: AdaWavLMEncoderLayer
-            yield layer.adapter_layer_ff
+        # if self.config.e_adapter_state == AdapterState.Missing:
+        #     return
+        # for layer in self.layers:
+        #     layer: AdaWavLMEncoderLayer
+        #     yield layer.adapter_layer_ff
+        yield from cl_modules.get("e_adapter", {}).values()
 
     def _cl_l_adapter_gen(self) -> Iterable[CLAdapter | CLParameter]:
-        if self.config.l_adapter_state == AdapterState.Missing:
-            return
-        for adapter in self.adapter_to_output.values():
-                yield adapter
-        yield self._adapter_to_output_layer_weights
+        # if self.config.l_adapter_state == AdapterState.Missing:
+        #     return
+        # if not self.config.layer_weights_only:
+        #     for adapter in self.adapter_to_output.values():
+        #         yield adapter
+        # yield self._adapter_to_output_layer_weights
+        yield from cl_modules.get("l_adapter", {}).values()
 
     def _cl_adapter_gen(self) -> Iterable[CLAdapter | CLParameter]:
         # if self.config.use_e_adapter:
@@ -361,6 +254,7 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
         all_self_attentions = () if output_attentions else None
         
         residual_adapter = ()
+        # l_adapter_states = None
         
         if attention_mask is not None:
             # make sure padded tokens output 0
@@ -376,7 +270,10 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
 
         for i, layer in enumerate(self.layers):
             if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
+                if residual_adapter:
+                    all_hidden_states = all_hidden_states + residual_adapter[-1:]
+                else:
+                    all_hidden_states = all_hidden_states + (hidden_states,)
 
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             # don't use LayerDrop in AdaToOutputWavLM
@@ -426,7 +323,11 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
                     # layer_ada_keys = list(self.config.adapter_to_output_layer_size.keys()) 
                     # if str(i) in layer_ada_keys:        
                     #     residual_adapter += (self.adapter_to_output[str(i)](hidden_states),)
-                    residual_adapter += (self.adapter_to_output[str(i)](hidden_states),)
+                    # l_adapter_states = self.adapter_to_output[str(i)](hidden_states)
+                    if not self.use_layer_weights_only:
+                        residual_adapter += (self.adapter_to_output[str(i)](hidden_states),)
+                    else:
+                        residual_adapter += (hidden_states,)
                     
             if skip_the_layer:
                 # layer_outputs = (None, None)
@@ -436,7 +337,11 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
                 all_self_attentions = all_self_attentions + (layer_outputs[2],)
 
         if output_hidden_states:
-            all_hidden_states = all_hidden_states + (hidden_states,)
+            # if l_adapter_states:
+            if residual_adapter:
+                all_hidden_states = all_hidden_states + residual_adapter[-1:]
+            else:
+                all_hidden_states = all_hidden_states + (hidden_states,)
         
         # ====
         if self.use_l_adapter:
@@ -539,17 +444,25 @@ class AdaWavLMForSequenceClassification(AdaPreTrainedModelOverride, WavLMForSequ
         super().__init__(config)
 
         self.wavlm = AdaWavLMModel(config)
-        self.projector = _projector(config)
-        self.classifier = _classifier(self)
+        # self.projector = _projector(config)
+        # self.classifier = _classifier(self)
+
+        def _new_classifier(task_name: str, config: CLWavLMConfig):
+            return new_classifier(task_name, config, self)
+        
+        self.projector = CLAdapter(new_projector, self.config.head_state).manage_by(cl_modules, "head", "projector")
+        self.classifier = CLAdapter(_new_classifier, self.config.head_state).manage_by(cl_modules, "head", "classifier")
+
         self.post_init()
 
     def _cl_head_adapter_gen(self):
-        if self.config.head_state == AdapterState.Missing:
-            return
-        assert isinstance(self.projector, CLAdapter)
-        yield self.projector
-        assert isinstance(self.classifier, CLAdapter)
-        yield self.classifier
+        # if self.config.head_state == AdapterState.Missing:
+        #     return
+        # assert isinstance(self.projector, CLAdapter)
+        # yield self.projector
+        # assert isinstance(self.classifier, CLAdapter)
+        # yield self.classifier
+        yield from cl_modules.get("head", {}).values()
 
     def _cl_adapter_gen(self, f: Callable[[CLAdapter], bool] | None = None):
         adapters = chain(
@@ -563,37 +476,39 @@ class AdaWavLMForSequenceClassification(AdaPreTrainedModelOverride, WavLMForSequ
         yield from adapters
 
     def _add_task_head(self, task_name: str):
-        assert self.config.head_state != AdapterState.Missing  # head is required
+        # assert self.config.head_state != AdapterState.Missing  # head is required
         
-        if not isinstance(self.projector, CLAdapter):
-            old_projector = self.projector
-            self.projector = CLAdapter(new_projector, self.config.head_state)
-            self.projector.set_adapter(task_name, old_projector)
-        else:
-            self.projector.add_adapter(task_name, self.config)
+        # if not isinstance(self.projector, CLAdapter):
+        #     old_projector = self.projector
+        #     self.projector = CLAdapter(new_projector, self.config.head_state).manage_by(cl_modules, "head", "projector")
+        #     self.projector.set_adapter(task_name, old_projector)
+        # else:
+        #     self.projector.add_adapter(task_name, self.config)
         
-        if not isinstance(self.classifier, CLAdapter):
-            old_classifier = self.classifier
-            def _new_classifier(task_name: str, config: CLWavLMConfig):
-                return new_classifier(task_name, config, self)
+        # if not isinstance(self.classifier, CLAdapter):
+        #     old_classifier = self.classifier
+        #     def _new_classifier(task_name: str, config: CLWavLMConfig):
+        #         return new_classifier(task_name, config, self)
             
-            self.classifier = CLAdapter(_new_classifier, self.config.head_state)
-            self.classifier.set_adapter(task_name, old_classifier)
-        else:
-            self.classifier.add_adapter(task_name, self.config)
+        #     self.classifier = CLAdapter(_new_classifier, self.config.head_state).manage_by(cl_modules, "head", "classifier")
+        #     self.classifier.set_adapter(task_name, old_classifier)
+        # else:
+        #     self.classifier.add_adapter(task_name, self.config)
+        return _add_task_head(self, task_name)
 
     def ensure_task_head(self, task_name: str, device: torch.device | None = None) -> str | None:
-        if task_name not in self.projector.adapters or task_name not in self.classifier.adapters:
-            self._add_task_head(task_name)
-            if device:
-                self.projector.to(device)
-                self.classifier.to(device)
-        else:
-            if self.projector.current_task == task_name and self.classifier.current_task == task_name:
-                return
-            self.projector.current_task = task_name
-            self.classifier.current_task = task_name
-        return self.classifier._previous_task
+        # if task_name not in self.projector.adapters or task_name not in self.classifier.adapters:
+        #     self._add_task_head(task_name)
+        #     if device:
+        #         self.projector.to(device)
+        #         self.classifier.to(device)
+        # else:
+        #     if self.projector.current_task == task_name and self.classifier.current_task == task_name:
+        #         return
+        #     self.projector.current_task = task_name
+        #     self.classifier.current_task = task_name
+        # return self.classifier._previous_task
+        return ensure_task_head(self, task_name, device)
 
     # def _set_task_head(self, task_name: str):
     #     if self.config.head_state == AdapterState.Missing:
@@ -631,21 +546,23 @@ class AdaWavLMForSequenceClassification(AdaPreTrainedModelOverride, WavLMForSequ
     #     self.projector.average_adapter(self.config)
     #     self.classifier.average_adapter(self.config)
 
-    # @check_cl_init
+    # # @check_cl_init
     def add_task(self, task_name: str):
-        self.wavlm.encoder.add_task(task_name)
-        self._add_task_head(task_name)
+        # self.wavlm.encoder.add_task(task_name)
+        # self._add_task_head(task_name)
+        return add_task(self, task_name)
     
     
     def set_task(self, task_name: str, f: Callable[[CLAdapter], bool] | None = None):
-        non_set = 0
-        for adapter in self._cl_adapter_gen(f):
-            if task_name in adapter.adapters:
-                adapter.current_task = task_name
-            else:
-                non_set += 1
-        if non_set:
-            print(f"{task_name} not exists in {non_set} modules. Unable to set {task_name} for them.")
+        # non_set = 0
+        # for adapter in self._cl_adapter_gen(f):
+        #     if task_name in adapter.adapters:
+        #         adapter.current_task = task_name
+        #     else:
+        #         non_set += 1
+        # if non_set:
+        #     print(f"{task_name} not exists in {non_set} modules. Unable to set {task_name} for them.")
+        return cl_modules.set_task(task_name, _f_with_names(f))
     
     # @check_cl_init  
     # def set_task(self, task_name: str):
@@ -657,13 +574,16 @@ class AdaWavLMForSequenceClassification(AdaPreTrainedModelOverride, WavLMForSequ
     #     self._set_task_back_head()
 
     def set_task_back(self, f: Callable[[CLAdapter], bool] | None = None):
-        for adapter in self._cl_adapter_gen(f):
-            adapter.current_task = adapter._previous_task
+        # for adapter in self._cl_adapter_gen(f):
+        #     adapter.current_task = adapter._previous_task
+        return cl_modules.set_task_back(_f_with_names(f))
 
     def set_task_grad(self, task_name: str | None = None, freeze=True, f: Callable[[CLAdapter], bool] | None = None):
-        for adapter in self._cl_adapter_gen(f):
-            adapter.set_grad(task_name, freeze)
+        # for adapter in self._cl_adapter_gen(f):
+        #     adapter.set_grad(task_name, freeze)
+        return cl_modules.set_task_grad(task_name, freeze, _f_with_names(f))
 
+    # for legacy tasks
     def set_average_task(self, f: Callable[[CLAdapter], bool] | None = None):
         for adapter in self._cl_adapter_gen(f):
             adapter.average_adapter(self.config)
@@ -676,7 +596,8 @@ class AdaWavLMForSequenceClassification(AdaPreTrainedModelOverride, WavLMForSequ
     # def set_average_task(self):
     #     self.wavlm.encoder.set_average_task()
     #     self._set_average_task_head()
-        
+
+    # for legacy tasks        
     def _task_names_gen(self):
 
         tasks: set[str] = set()
@@ -693,7 +614,44 @@ class AdaWavLMForSequenceClassification(AdaPreTrainedModelOverride, WavLMForSequ
     
     @property
     def current_layer_weights(self):
+        # return F.softmax(self.layer_weights, dim=-1)
         return F.softmax(self.wavlm.encoder.adapter_to_output_layer_weights.detach().cpu(), dim=-1)
+
+def _f_with_names(f: Callable[[CLAdapter], bool] | None = None):
+    if f is None:
+        return
+    def _deco_f(module, *_):
+        return f(module)
+    return _deco_f
+
+def _add_task_head(model: AdaWavLMForSequenceClassification, task_name: str):
+    assert model.config.head_state != AdapterState.Missing  # head is required
+
+    # model.projector.add_adapter(task_name, model.config)
+    # model.classifier.add_adapter(task_name, model.config)
+    for module in cl_modules.get("head", {}).values():
+        module.add_adapter(task_name, model.config)
+
+def add_task(model: AdaWavLMForSequenceClassification, task_name: str, manager=cl_modules, f: Callable[[CLModule, str, str], bool] | None = None):
+    for module in manager.module_gen(f):
+        module.add_adapter(task_name, model.config)
+
+def ensure_task_head(model: AdaWavLMForSequenceClassification, task_name: str, device: torch.device | None = None) -> str | None:
+    projector = model.projector
+    classifier = model.classifier
+    if not isinstance(projector, CLAdapter):
+        return
+    if task_name not in projector.adapters or task_name not in classifier.adapters:
+        _add_task_head(model, task_name)
+        if device:
+            projector.to(device)
+            classifier.to(device)
+    else:
+        if projector.current_task == task_name and classifier.current_task == task_name:
+            return
+        projector.current_task = task_name
+        classifier.current_task = task_name
+    return classifier._previous_task
 
 class ModelAdaptiveAvgPool1d(nn.AdaptiveAvgPool1d):
 
