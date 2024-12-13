@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 # from tqdm import tqdm
 
-from clacl.model.wavml_cl import AdapterState
+from clacl.model.wavlm_cl import AdapterState
 from clacl.data.common import DataPieceCollator as Collator, DataLoaders
 from clacl.data.speech_commands import Dataset as SCDataset, CLASSES as SC_CLASSES
 
@@ -72,7 +72,7 @@ class KSSubTask(TaskBase):
     if TYPE_CHECKING:
         from torch.optim.lr_scheduler import ExponentialLR
 
-        from clacl.model.wavml_cl import AdaWavLMForSequenceClassification
+        from clacl.model.wavlm_cl import AdaWavLMForSequenceClassification
         from clacl.task.common import Config
         
         model: AdaWavLMForSequenceClassification

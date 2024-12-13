@@ -8,7 +8,7 @@ from itertools import pairwise
 
 from pydantic import ConfigDict, Field
 
-from clacl.model.wavml_cl import AdapterState, cl_modules
+from clacl.model.wavlm_cl import AdapterState, cl_modules
 from clacl.task.common import WavMLClassificationTask as TaskBase
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import TaskConfig, _init_config

@@ -12,7 +12,7 @@ import tomli
 import tomli_w
 from transformers.models.wavlm import WavLMForSequenceClassification
 
-from clacl.model.wavml_cl import AdapterState
+from clacl.model.wavlm_cl import AdapterState
 from clacl.task.common import WavMLClassificationTask as TaskBase
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import TaskConfig, _init_config

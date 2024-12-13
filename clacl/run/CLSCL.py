@@ -11,7 +11,7 @@ class CLSCLPipeline(Pipeline):
 
     def _after_train(self):
         from pathlib import Path
-        from clacl.model.wavml_cl import cl_modules
+        from clacl.model.wavlm_cl import cl_modules
         from clacl.util import logger
         base = Path("data/CLSCL/model")
         base.mkdir(exist_ok=True)

@@ -11,14 +11,14 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from pydantic import BaseModel, SerializeAsAny
 
-from clacl.model.wavml_cl import AdapterState, AdaptivePoolState
-from clacl.model.wavml_cl import add_task, ensure_task_head, cl_modules
+from clacl.model.wavlm_cl import AdapterState, AdaptivePoolState
+from clacl.model.wavlm_cl import add_task, ensure_task_head, cl_modules
 from clacl.task.common import WavMLClassificationTask as TaskBase, TaskConfig
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import WandbConfig
 from clacl.task.phase import Phase, TrainPhase, ValidPhase, CurrentTaskTestPhase, OtherTaskTestPhase
 from clacl.task.phase import PPhases, Phases, Info, BatchData
-from clacl.model.wavml_cl import AdaWavLMForSequenceClassification, CustomWavLMConfig
+from clacl.model.wavlm_cl import AdaWavLMForSequenceClassification, CustomWavLMConfig
 from clacl.util import get_device, logger, wandb_log_table
 
 if TYPE_CHECKING:

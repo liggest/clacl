@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR
 from tqdm import tqdm
 
-from clacl.model.wavml_cl import AdaWavLMForSequenceClassification
+from clacl.model.wavlm_cl import AdaWavLMForSequenceClassification
 from clacl.data.common import DataPieceCollator as Collator, DataLoaders
 from clacl.data.speech_commands import Dataset
 from clacl.task.common import WavMLClassificationTask as TaskBase

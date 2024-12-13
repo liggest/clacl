@@ -5,8 +5,8 @@ from pydantic import ConfigDict, Field
 import torch.nn as nn
 from transformers.models.wavlm import WavLMForSequenceClassification
 
-from clacl.model.wavml_cl import AdapterState, AdaptivePoolState
-from clacl.model.wavml_cl import ModelAdaptiveAvgPool1d, ModelAdaptiveMaxPool1d
+from clacl.model.wavlm_cl import AdapterState, AdaptivePoolState
+from clacl.model.wavlm_cl import ModelAdaptiveAvgPool1d, ModelAdaptiveMaxPool1d
 # from clacl.task.common import WavMLClassificationTask as TaskBase
 # from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import TaskConfig, _init_config
