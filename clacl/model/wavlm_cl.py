@@ -25,10 +25,18 @@ from clacl.model.cl import AdapterState
 from clacl.model.cl import CLManager, CLAdapter, CLParameter, CLModule
 from clacl.model.cl import not_special_task
 
+from clacl.util import logger
+
 class AdaptivePoolState(str, Enum):
     Missing = "missing"
     Avg = "avg"
     Max = "max"
+
+class CLInitSpecials(str, Enum):
+    Self = "Self"
+    First = "First"
+    Last = "Last"
+    All = "All"
 
 class CLWavLMConfig(CustomWavLMConfig):
     def __init__(self, *args, **kw):
@@ -37,7 +45,12 @@ class CLWavLMConfig(CustomWavLMConfig):
         self.l_adapter_state = AdapterState(kw.pop("l_adapter_state", AdapterState.CL))
         self.head_state = AdapterState(kw.pop("head_state", AdapterState.CL))
 
-        self.layer_norm_state = AdapterState(kw.pop("layer_norm_state", AdapterState.CL))
+        # self.layer_norm_state = AdapterState(kw.pop("layer_norm_state", AdapterState.CL))
+
+        self.cl_e_adapter_init: list[str | CLInitSpecials] = kw.pop("cl_e_adapter_init", [CLInitSpecials.Self])
+        self.cl_l_adapter_init: list[str | CLInitSpecials] = kw.pop("cl_l_adapter_init", [CLInitSpecials.Self])
+        self.cl_layer_weights_init: list[str | CLInitSpecials] = kw.pop("cl_layer_weights_init", [CLInitSpecials.Self])
+        self.cl_head_init: list[str | CLInitSpecials] = kw.pop("cl_head_init", [CLInitSpecials.Self])
 
         # self.use_e_adapter = (self.e_adapter_state != AdapterState.Missing)
         # self.use_l_adapter = (self.l_adapter_state != AdapterState.Missing) or self.use_l_adapter
@@ -85,21 +98,97 @@ AdaPreTrainedModelOverride.config_class = CLWavLMConfig
 
 cl_modules = CLManager("wavlm_cl")
 
-def new_e_adapter(task_name: str, config: CustomWavLMConfig):
+def _average_weights(new_module: nn.Module, CL_module: CLAdapter, task_name: str, init_list: list[str | CLInitSpecials]):
+    logger.debug(f"Try to init weights of {CL_module._group}.{CL_module._name}.{task_name} by averaging {init_list!r}")
+    previous_task_names = [*CL_module.adapters]
+    states_to_avg = []
+    for init_name in init_list:
+        if init_name == CLInitSpecials.Self:
+            states_to_avg.append(new_module.state_dict())
+        elif init_name == CLInitSpecials.First:
+            if previous_task_names:
+                states_to_avg.append(CL_module.adapters[previous_task_names[0]].state_dict())
+        elif init_name == CLInitSpecials.Last:
+            if previous_task_names:
+                states_to_avg.append(CL_module.adapters[previous_task_names[-1]].state_dict())
+        elif init_name == CLInitSpecials.All:
+            states_to_avg.extend(m.state_dict() for m in CL_module.adapters.values())
+        elif init_name in CL_module.adapters:
+            states_to_avg.append(CL_module.adapters[init_name].state_dict())
+        else:
+            # logger.debug(f"{init_name!r} not found during init of {CL_module._group}.{CL_module._name}.{task_name}, skipped")
+            pass
+
+    n = len(states_to_avg)
+    if n == 0:
+        # logger.debug(f"{CL_module._group}.{CL_module._name}.{task_name} init without averaging")
+        return new_module
+    
+    new_state = new_module.state_dict()
+    if n == 1:
+        # logger.debug(f"{CL_module._group}.{CL_module._name}.{task_name} init by overriding")
+        override_state = states_to_avg[0]
+        for key in new_state:
+            new_state[key] = override_state[key].detach().cpu().clone()
+    else:
+        # logger.debug(f"{CL_module._group}.{CL_module._name}.{task_name} init by averaging {n} modules")
+        for key in new_state:
+            new_state[key] = sum(state[key].detach().cpu() for state in states_to_avg) / n
+    new_module.load_state_dict(new_state)
+    return new_module
+
+def _average_parameters(new_module: nn.Parameter, CL_module: CLParameter, task_name: str, init_list: list[str | CLInitSpecials]):
+    logger.debug(f"Try to init weights of {CL_module._group}.{CL_module._name}.{task_name} by averaging {init_list!r}")
+    previous_task_names = [*CL_module.adapters]
+    tensors_to_avg = []
+    for init_name in init_list:
+        if init_name == CLInitSpecials.Self:
+            tensors_to_avg.append(new_module.detach().cpu())
+        elif init_name == CLInitSpecials.First:
+            if previous_task_names:
+                tensors_to_avg.append(CL_module.adapters[previous_task_names[0]].detach().cpu())
+        elif init_name == CLInitSpecials.Last:
+            if previous_task_names:
+                tensors_to_avg.append(CL_module.adapters[previous_task_names[-1]].detach().cpu())
+        elif init_name == CLInitSpecials.All:
+            tensors_to_avg.extend(m.detach().cpu() for m in CL_module.adapters.values())
+        elif init_name in CL_module.adapters:
+            tensors_to_avg.append(CL_module.adapters[init_name].detach().cpu())
+        else:
+            # logger.debug(f"{init_name!r} not found during init of {CL_module._group}.{CL_module._name}.{task_name}, skipped")
+            pass
+
+    n = len(tensors_to_avg)
+    if n == 0:
+        # logger.debug(f"{CL_module._group}.{CL_module._name}.{task_name} init without averaging")
+        return new_module
+    
+    if n == 1:
+        # logger.debug(f"{CL_module._group}.{CL_module._name}.{task_name} init by overriding")
+        new_module.data = tensors_to_avg[0].clone()
+    else:
+        # logger.debug(f"{CL_module._group}.{CL_module._name}.{task_name} init by averaging {n} modules")
+        new_module.data = sum(tensors_to_avg) / n
+    return new_module
+
+def new_e_adapter(module: CLAdapter, task_name: str, config: CLWavLMConfig):
     adapter = AdapterLayer(config)
     adapter._init_weights(config)
+    adapter = _average_weights(adapter, module, task_name, config.cl_e_adapter_init)
     return adapter
 
-def new_l_adapter(task_name: str, config: CustomWavLMConfig):
+def new_l_adapter(module: CLAdapter, task_name: str, config: CLWavLMConfig):
     adapter = AdapterToOutputLayer(config)
     adapter._init_weights(config)
+    adapter = _average_weights(adapter, module, task_name, config.cl_l_adapter_init)
     return adapter
 
-def new_adapter_to_output_layer_weights(task_name: str, config: CustomWavLMConfig):
+def new_adapter_to_output_layer_weights(module: CLParameter, task_name: str, config: CLWavLMConfig):
     num_adapter_to_output_layers = config.num_hidden_layers
     adapter_to_output_layer_weights = nn.Parameter(torch.ones(num_adapter_to_output_layers) / num_adapter_to_output_layers)
     # length = 12, not same with WavLMForSequenceClassification.layer_weights (length = 13)
     config.layerdrop = 0.0  # Don't use LayerDrop at here
+    adapter_to_output_layer_weights = _average_parameters(adapter_to_output_layer_weights, module, task_name, config.cl_layer_weights_init)
     return adapter_to_output_layer_weights
 
 class AdaWavLMEncoderLayer(WavLMEncoderLayer):
@@ -114,7 +203,7 @@ class AdaWavLMEncoderLayer(WavLMEncoderLayer):
 
     def forward(self, hidden_states, attention_mask=None, position_bias=None, output_attentions=False, index=0):
         attn_residual = hidden_states
-        hidden_states, attn_weights, position_bias = self.attention(
+        hidden_states, attn_weights, position_bias = self.attention(  # May have UserWarning from pytorch
             hidden_states,
             attention_mask=attention_mask,
             position_bias=position_bias,
@@ -143,7 +232,7 @@ class AdaWavLMEncoderLayer(WavLMEncoderLayer):
         
         return outputs
 
-def _encoders_gen(config: CustomWavLMConfig):
+def _encoders_gen(config: CLWavLMConfig):
     yield AdaWavLMEncoderLayer(config, has_relative_position_bias=True)
     for i in range(1, config.num_hidden_layers):
         yield AdaWavLMEncoderLayer(config, has_relative_position_bias=False)
@@ -365,7 +454,7 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
 
 class AdaWavLMModel(AdaPreTrainedModelOverride, WavLMModel):
 
-    def __init__(self, config: CustomWavLMConfig):
+    def __init__(self, config: CLWavLMConfig):
         super().__init__(config)
 
         self.encoder = AdaLayerToOutWavLMEncoder(config)
@@ -389,9 +478,10 @@ def _mimic_init_weights(module: nn.Module, config: CustomWavLMConfig):
 def _projector(config: CLWavLMConfig):
     return nn.Linear(config.output_hidden_size, config.classifier_proj_size)
 
-def new_projector(task_name: str, config: CLWavLMConfig):
+def new_projector(module: CLAdapter, task_name: str, config: CLWavLMConfig):
     projector = _projector(config)
     _mimic_init_weights(projector, config)
+    projector = _average_weights(projector, module, task_name, config.cl_head_init)
     return projector
 
 def _classifier(model: "AdaWavLMForSequenceClassification"):
@@ -403,7 +493,7 @@ def _classifier(model: "AdaWavLMForSequenceClassification"):
         #     _classifier(config),
         # )
         if config.head_adaptive_pool == AdaptivePoolState.Max:
-            pool = ModelAdaptiveMaxPool1d(model)
+            pool = ModelAdaptiveMaxPool1d(model)  # need model as reference
         else:
             pool = ModelAdaptiveAvgPool1d(model)
         return nn.Sequential(
@@ -413,9 +503,10 @@ def _classifier(model: "AdaWavLMForSequenceClassification"):
         )
     return nn.Linear(config.classifier_proj_size, config.num_labels)
 
-def new_classifier(task_name: str, config: CLWavLMConfig, model: "AdaWavLMForSequenceClassification"):
+def new_classifier(module: CLAdapter, task_name: str, config: CLWavLMConfig, model: "AdaWavLMForSequenceClassification"):
     classifier = _classifier(model)
     _mimic_init_weights(classifier, config)
+    classifier = _average_weights(classifier, module, task_name, config.cl_head_init)
     return classifier
 
 # _first_task_name = None
@@ -447,8 +538,8 @@ class AdaWavLMForSequenceClassification(AdaPreTrainedModelOverride, WavLMForSequ
         # self.projector = _projector(config)
         # self.classifier = _classifier(self)
 
-        def _new_classifier(task_name: str, config: CLWavLMConfig):
-            return new_classifier(task_name, config, self)
+        def _new_classifier(module: CLAdapter, task_name: str, config: CLWavLMConfig):
+            return new_classifier(module, task_name, config, self)
         
         self.projector = CLAdapter(new_projector, self.config.head_state).manage_by(cl_modules, "head", "projector")
         self.classifier = CLAdapter(_new_classifier, self.config.head_state).manage_by(cl_modules, "head", "classifier")

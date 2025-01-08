@@ -23,7 +23,7 @@ class AdapterState(str, Enum):
 
 class CLAdapter(nn.Module):            
 
-    def __init__(self, factory: Callable[[str, PretrainedConfig], nn.Module], state=AdapterState.CL):
+    def __init__(self, factory: Callable[[Self, str, PretrainedConfig], nn.Module], state=AdapterState.CL):
         super().__init__()
         self.adapters = self._init_adapters()
         self._current_task: str | None = None
@@ -52,7 +52,7 @@ class CLAdapter(nn.Module):
                 and self.state != AdapterState.CL):
             return  # only one module
 
-        adapter = self.module_factory(task_name, config)
+        adapter = self.module_factory(self, task_name, config)
         self.set_adapter(task_name, adapter)
 
         if (self.state == AdapterState.Freeze):
@@ -117,7 +117,7 @@ class CLAdapter(nn.Module):
 
 class CLParameter(nn.Module):
 
-    def __init__(self, factory: Callable[[str, PretrainedConfig], nn.Parameter], state=AdapterState.CL):
+    def __init__(self, factory: Callable[[Self, str, PretrainedConfig], nn.Parameter], state=AdapterState.CL):
         super().__init__() 
         self.adapters = self._init_adapters()
         self._current_task: str | None = None
