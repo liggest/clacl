@@ -41,6 +41,7 @@ l_adapter = "cl"
 # l_adapter = "tune_all"
 # l_adapter = "missing"
 head = "cl"
+# head = "tune_all"
 layer_weights_only = false
 # layer_weights_only = true
 head_adaptive_pool = "missing"
@@ -48,6 +49,28 @@ head_adaptive_pool = "missing"
 # head_adaptive_pool = "max"
 head_adaptive_pool_size = 0
 # head_adaptive_pool_size = 128
+
+[task.cl]
+e_adapter_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
+l_adapter_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
+layer_weights_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
+head_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
 
 [task.train]
 log_layer_weights = true
@@ -259,5 +282,6 @@ eta_min = 1e-06
 [wandb]
 enable = true
 project = "clacl_CLSCL_test"
-name = "CLSCL_5_save_test"
+# project = "clacl_CLSCL"
+name = "CLSCL_5"
 notes = "Test run"

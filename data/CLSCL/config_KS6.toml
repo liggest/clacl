@@ -1,0 +1,233 @@
+[task]
+name = "CLSCL"
+seed = 42
+sequence = [
+    "KS0",
+    "KS1",
+    "KS2",
+    "KS3",
+    "KS4",
+    "KS5",
+]
+
+[task.dataset.SpeechCommands]
+type = "SpeechCommands"
+path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+
+[task.model]
+e_adapter = "cl"
+# e_adapter = "tune_all"
+# e_adapter = "missing"
+l_adapter = "cl"
+# l_adapter = "tune_all"
+# l_adapter = "missing"
+head = "cl"
+# head = "tune_all"
+layer_weights_only = false
+# head_adaptive_pool = "missing"
+head_adaptive_pool = "avg"
+# head_adaptive_pool = "max"
+head_adaptive_pool_size = 32
+
+[task.cl]
+e_adapter_init = [
+    "Self",
+]
+l_adapter_init = [
+    "Self",
+]
+layer_weights_init = [
+    "Self",
+]
+head_init = [
+    "Self",
+]
+
+[task.train]
+log_layer_weights = true
+
+[task.sub.KS0]
+name = "KS0"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "tree", 
+    "happy", 
+    "nine", 
+    "marvin", 
+    "bird", 
+    "on", 
+    "right", 
+    "bed", 
+    "three", 
+    "four",
+    "go", 
+    "two", 
+    "zero",
+    "eight", 
+    "dog"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS0.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CL/csv"
+
+[task.sub.KS0.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS0.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.KS1]
+name = "KS1"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "sheila", 
+    "no", 
+    "wow"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS1.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CL/csv"
+
+[task.sub.KS1.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS1.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.KS2]
+name = "KS2"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "five", 
+    "up", 
+    "cat"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS2.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CL/csv"
+
+[task.sub.KS2.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS2.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.KS3]
+name = "KS3"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "house", 
+    "left",
+    "six"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS3.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CL/csv"
+
+[task.sub.KS3.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS3.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.KS4]
+name = "KS4"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "off", 
+    "stop", 
+    "seven"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS4.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CL/csv"
+
+[task.sub.KS4.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS4.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.KS5]
+name = "KS5"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "yes", 
+    "down", 
+    "one"
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS5.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CL/csv"
+
+[task.sub.KS5.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS5.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[wandb]
+enable = true
+project = "clacl_KS_CL"
+name = "KS6_pool"
+notes = "Test run"

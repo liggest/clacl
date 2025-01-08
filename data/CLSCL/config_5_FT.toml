@@ -35,14 +35,38 @@ path = "../../dataset/ASVspoof2019/LA"
 
 [task.model]
 # e_adapter = "cl"
-e_adapter = "missing"
+e_adapter = "tune_all"
+# e_adapter = "missing"
 # l_adapter = "cl"
-l_adapter = "missing"
+l_adapter = "tune_all"
+# l_adapter = "missing"
 head = "tune_all"
 # head_adaptive_pool = "missing"
 head_adaptive_pool = "avg"
 # head_adaptive_pool = "max"
 head_adaptive_pool_size = 128
+
+[task.cl]
+e_adapter_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
+l_adapter_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
+layer_weights_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
+head_init = [
+    # "Last",
+    # "All",
+    "Self",
+]
 
 [task.train]
 log_layer_weights = true
