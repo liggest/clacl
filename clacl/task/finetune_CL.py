@@ -13,7 +13,7 @@ from clacl.task.common import TaskConfig, _init_config
 from clacl.task.sub import ModelConfig, TrainConfig, TSubTaskConfig
 from clacl.task.CLSCL import UDatasetConfig, USubTaskConfig
 from clacl.task.CLSCL import Datasets, SubConfigs
-from clacl.task.CLSCL import CLTask as TaskBase, CLTrainer as TrainerBase
+from clacl.task.CLSCL import CLTask as CLTaskBase, CLTrainer as CLTrainerBase
 from clacl.task.finetune import LearningRate
 from clacl.task.finetune import FinetuningSubTaskWrapper
 from clacl.util import logger
@@ -47,7 +47,7 @@ class FinetuningCLConfig(TaskConfig):
     pretrained_name: str | None = None  # shadow
     optimizer: str | None = None
 
-class FinetuningCLTask(TaskBase):
+class FinetuningCLTask(CLTaskBase):
     if TYPE_CHECKING:
         from clacl.task.common import Config
 
@@ -58,6 +58,10 @@ class FinetuningCLTask(TaskBase):
     def _raw_config(self):
         return _init_config(FinetuningCLConfig())
     
+    @property
+    def _model_config_extra(self):
+        return {}
+
     def init_subs(self):
         super().init_subs()
         self.subs = { name: FinetuningCLSubTaskWrapper(task, self) for name, task in self.subs.items() }
@@ -66,7 +70,7 @@ class FinetuningCLTask(TaskBase):
     def _trainer(self):
         return FinetuningCLTrainer(self)
     
-class FinetuningCLTrainer(TrainerBase):
+class FinetuningCLTrainer(CLTrainerBase):
     if TYPE_CHECKING:
         task: FinetuningCLTask
 

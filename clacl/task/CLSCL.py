@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING, Annotated
 from functools import cached_property
 from itertools import pairwise
 
-from pydantic import ConfigDict, Field
+import torch
+from pydantic import ConfigDict, Field, BaseModel
 
-from clacl.model.wavlm_cl import AdapterState, cl_modules
+from clacl.model.wavlm_cl import AdapterState, CLInitSpecials, cl_modules
 from clacl.task.common import WavMLClassificationTask as TaskBase
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import TaskConfig, _init_config
@@ -59,6 +60,12 @@ SubClasses: dict[str, type[SubTask[TSubTaskConfig]]] = {
     "FSDSubTask": FSDSubTask,
 }
 
+class CLConfig(BaseModel):
+    e_adapter_init: list[str | CLInitSpecials] = [CLInitSpecials.Self]
+    l_adapter_init: list[str | CLInitSpecials] = [CLInitSpecials.Self]
+    layer_weights_init: list[str | CLInitSpecials] = [CLInitSpecials.Self]
+    head_init: list[str | CLInitSpecials] = [CLInitSpecials.Self]
+
 class CLSCLConfig(TaskConfig):
     model_config = ConfigDict(extra = "allow")
 
@@ -67,6 +74,7 @@ class CLSCLConfig(TaskConfig):
     dataset: dict[str, UDatasetConfig] = Datasets
     
     model: ModelConfig = ModelConfig(e_adapter=AdapterState.CL, l_adapter=AdapterState.CL, head=AdapterState.CL)
+    cl: CLConfig = CLConfig()
     train: TrainConfig = TrainConfig()
 
     sub: dict[str, USubTaskConfig] = SubConfigs
@@ -109,6 +117,16 @@ class CLTask(TaskBase):
     def scheduler(self):
         return self.current_task.scheduler
 
+    @property
+    def _model_config_extra(self):
+        config = self.config
+        return {
+            "cl_e_adapter_init": config.cl.e_adapter_init,
+            "cl_l_adapter_init": config.cl.l_adapter_init,
+            "cl_layer_weights_init": config.cl.layer_weights_init,
+            "cl_head_init": config.cl.head_init,
+        }
+
     def init_subs(self):
         cl_config = self.config
         sub_config = cl_config.sub
@@ -126,6 +144,7 @@ class CLTask(TaskBase):
     def init_model(self):
         self.init_subs()
         self.init_task_sequence()
+        self.current_task.model_config.update(self._model_config_extra)
         self.current_task.init_model()
 
     def _trainer(self):
@@ -138,9 +157,13 @@ class CLTrainer(TrainerBase):
 
     def train(self):
         self.learned_averages = []
+        
         cl = self.task
         last_task = None
         total_tasks = len(cl.tasks)
+
+        self.accuracy_mat = torch.zeros((total_tasks, total_tasks), dtype=torch.float64)
+
         for cl.task_id, task in enumerate(cl.tasks):
             task.task_id = cl.task_id
             logger.info(f"Task: {task.name_with_id} ({cl.task_id + 1} / {total_tasks})")
@@ -171,25 +194,88 @@ class CLTrainer(TrainerBase):
         
     def evaluate_all_for(self, current_task: SubTask[TSubTaskConfig]):
         cl = self.task
-        learned_average_accuracy = 0
+        # learned_average_accuracy = 0
+        cid = current_task.task_id
         for task_id, test_task in enumerate(cl.tasks):
             test_task.task_id = task_id
             test_info = test_task.evaluate_for(current_task)
 
-            if test_task.task_id <= current_task.task_id:
-                learned_average_accuracy += test_info.accuracy
+            self.accuracy_mat[cid, task_id] = test_info.accuracy
+
+
+            # if test_task.task_id <= current_task.task_id:
+            #     learned_average_accuracy += test_accuracy
         
-        learned_average_accuracy /= (cl.task_id + 1)
+        # learned_average_accuracy /= (cl.task_id + 1)
+        learned_average_accuracy = Metrics.learned_average(self.accuracy_mat, cid)
 
         self.learned_averages.append(learned_average_accuracy)
         
-        if len(self.learned_averages) > 1:
-            backward_transfer = sum(a1 - a0 for a0, a1 in pairwise(self.learned_averages))
-            backward_transfer /= (len(self.learned_averages) - 1)
-        else:
-            backward_transfer = 0
+        backward_transfer = Metrics.backward_transfer(self.accuracy_mat, cid)
 
         wandb_log({
             "test/learned_average_acc": learned_average_accuracy,
-            "test/backward_transfer": backward_transfer
+            "test/backward_transfer": backward_transfer,
+            "test/backward_transfer_gem": Metrics.backward_transfer_gem(self.accuracy_mat, cid),
+            "test/backward_transfer_kws": Metrics.backward_transfer_kws(self.learned_averages),
+            "test/forward_transfer_gem": Metrics.forward_transfer_gem(self.accuracy_mat, cid),
+            "test/forward_transfer": Metrics.forward_transfer(self.accuracy_mat, cid),
+            "test/average_forgetting": Metrics.forgetting(self.accuracy_mat, cid),
         })
+
+
+class Metrics:
+
+    @staticmethod
+    def learned_average(accuracy_mat: torch.Tensor, cid: int):
+        return accuracy_mat[cid, :cid + 1].mean().item()
+
+    @staticmethod
+    def backward_transfer_kws(learned_averages: list[float]):
+        if len(learned_averages) <= 1:
+            return 0
+        return sum(a1 - a0 for a0, a1 in pairwise(learned_averages)) / (len(learned_averages) - 1)
+
+    @staticmethod
+    def backward_transfer_gem(accuracy_mat: torch.Tensor, cid: int):
+        if cid < 1:
+            return 0
+        # previous tasks, exclude current task
+        # accuracy_mat.diag() are accuracy of tasks when they were just trained 
+        return (accuracy_mat[cid, :cid] - accuracy_mat.diag()[:cid]).mean().item()
+        
+    
+    @staticmethod
+    def backward_transfer(accuracy_mat: torch.Tensor, cid: int):
+        if cid < 1:
+            return 0
+        task_count = cid + 1
+        sub = accuracy_mat[:task_count, :task_count]
+        lower_triangle = (sub - sub.diag()).tril(diagonal=-1)  # without diagonal
+        # return lower_triangle[lower_triangle!=0].mean().item()  # may be incorrect if some values in thelower triangle are zero
+        return (lower_triangle.sum() / (task_count * (task_count - 1) / 2)).item()
+        
+
+    @staticmethod
+    def forward_transfer_gem(accuracy_mat: torch.Tensor, cid: int, init_accuracy: torch.Tensor | None = None):
+        task_count = cid + 1
+        diag = accuracy_mat[:task_count].diag(diagonal=1)  # accuracy_mat[i-1, i]
+        if init_accuracy is None:
+            init_accuracy = torch.zeros_like(diag, dtype=torch.float64)
+        else:
+            init_accuracy = init_accuracy[:diag.size(0)]
+        return (diag - init_accuracy).mean().item()
+
+    @staticmethod
+    def forward_transfer(accuracy_mat: torch.Tensor, cid: int):
+        task_count = cid + 1
+        upper_triangle = accuracy_mat[:task_count].triu(diagonal=1)  # without diagonal
+        # return upper_triangle[upper_triangle!=0].mean().item()
+        return (upper_triangle.sum() / (task_count * (task_count - 1) / 2)).item()
+
+    @staticmethod
+    def forgetting(accuracy_mat: torch.Tensor, cid: int):
+        if cid < 1:
+            return 0
+        max_previous, _ = accuracy_mat[:cid, :cid].max(dim=0)
+        return(max_previous - accuracy_mat[cid, :cid]).mean().item()
