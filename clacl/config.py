@@ -10,6 +10,7 @@ class CLIConfig(BaseSettings):
 
     config: Path | None = Field(None, validation_alias=AliasChoices("c", "config"))
     dump: bool | Path = Field(False, validation_alias=AliasChoices("d", "dump"))
+    seed: int | None = None
 
 _cli = None
 

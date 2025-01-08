@@ -16,11 +16,18 @@ class Pipeline:
     
     def main(self):
 
+        _cli = cli_config()
+
         seed = self._task.config.seed  # init task
+
+        if _cli.seed is not None:
+            seed = _cli.seed
+            self._task.config.seed = seed  # override
+            
         assert seed is not None
         fix_seed(seed)
 
-        if dump_file := cli_config().dump:
+        if dump_file := _cli.dump:
             self.dump(dump_file)
 
             import sys
