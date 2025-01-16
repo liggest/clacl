@@ -2,6 +2,7 @@
 from typing import Callable, Iterable
 from itertools import chain
 from enum import Enum
+import warnings
 
 import torch
 import torch.nn as nn
@@ -38,6 +39,12 @@ class CLInitSpecials(str, Enum):
     Last = "Last"
     All = "All"
 
+class LComponentState(str, Enum):
+    All = "all"
+    """ Adapters + LayerWeights """
+    Adapters = "adapters"
+    LayerWeights = "layer_weights"
+
 class CLWavLMConfig(CustomWavLMConfig):
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -62,12 +69,18 @@ class CLWavLMConfig(CustomWavLMConfig):
 
         # self.use_cl_init_only = False
 
-        self.layer_weights_only: bool = kw.pop("layer_weights_only", False)
+        self.l_adapter_component: LComponentState = LComponentState(kw.pop("l_adapter_component", LComponentState.All))
+
+        # self.layer_weights_only: bool = kw.pop("layer_weights_only", False)
 
         self.head_adaptive_pool: AdaptivePoolState = AdaptivePoolState(kw.pop("head_adaptive_pool", AdaptivePoolState.Missing))
         self.head_adaptive_pool_size: int = kw.pop("head_adaptive_pool_size", 0)
         if self.use_adaptive_pool:
             assert self.head_adaptive_pool_size > 0
+
+        self.head_expanding: bool = kw.pop("head_expanding", False)
+        if self.head_expanding:
+            assert self.head_state == AdapterState.CL
 
     @property
     def l_adapter_state(self):
@@ -81,14 +94,24 @@ class CLWavLMConfig(CustomWavLMConfig):
             self.use_l_adapter = False
 
     @property
-    def layer_weights_only(self):
-        return self.layer_weights_only_
-    
-    @layer_weights_only.setter
-    def layer_weights_only(self, val):
-        self.layer_weights_only_ = bool(val)
-        if self.layer_weights_only_:
+    def l_adapter_component(self):
+        return self.l_adapter_component_
+
+    @l_adapter_component.setter
+    def l_adapter_component(self, val):
+        self.l_adapter_component_ = LComponentState(val)
+        if self.l_adapter_component_ == LComponentState.LayerWeights:
             self.output_hidden_size = self.hidden_size
+
+    # @property
+    # def layer_weights_only(self):
+    #     return self.layer_weights_only_
+    
+    # @layer_weights_only.setter
+    # def layer_weights_only(self, val):
+    #     self.layer_weights_only_ = bool(val)
+    #     if self.layer_weights_only_:
+    #         self.output_hidden_size = self.hidden_size
 
     @property
     def use_adaptive_pool(self):
@@ -183,9 +206,12 @@ def new_l_adapter(module: CLAdapter, task_name: str, config: CLWavLMConfig):
     adapter = _average_weights(adapter, module, task_name, config.cl_l_adapter_init)
     return adapter
 
+def new_layer_weights(num_layers: int) -> nn.Parameter:
+    return nn.Parameter(torch.ones(num_layers) / num_layers)
+
 def new_adapter_to_output_layer_weights(module: CLParameter, task_name: str, config: CLWavLMConfig):
     num_adapter_to_output_layers = config.num_hidden_layers
-    adapter_to_output_layer_weights = nn.Parameter(torch.ones(num_adapter_to_output_layers) / num_adapter_to_output_layers)
+    adapter_to_output_layer_weights = new_layer_weights(num_adapter_to_output_layers)
     # length = 12, not same with WavLMForSequenceClassification.layer_weights (length = 13)
     config.layerdrop = 0.0  # Don't use LayerDrop at here
     adapter_to_output_layer_weights = _average_parameters(adapter_to_output_layer_weights, module, task_name, config.cl_layer_weights_init)
@@ -245,7 +271,12 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
 
     @property
     def use_layer_weights_only(self):
-        return self.config.layer_weights_only
+        # return self.config.layer_weights_only
+        return self.config.l_adapter_component == LComponentState.LayerWeights
+
+    @property
+    def use_l_adapters_only(self):
+        return self.config.l_adapter_component == LComponentState.Adapters
 
     def __init__(self, config: CLWavLMConfig):
         super().__init__(config)
@@ -261,7 +292,12 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
                     str(layer): CLAdapter(new_l_adapter, config.l_adapter_state).manage_by(cl_modules, "l_adapter")
                     for layer in range(num_adapter_to_output_layers)
                 })
-            self._adapter_to_output_layer_weights = CLParameter(new_adapter_to_output_layer_weights, config.l_adapter_state).manage_by(cl_modules, "l_adapter", "layer_weights")
+            if not self.use_l_adapters_only:
+                self._adapter_to_output_layer_weights = CLParameter(new_adapter_to_output_layer_weights, config.l_adapter_state).manage_by(cl_modules, "l_adapter", "layer_weights")
+            else:
+                dummy_layer_weights = new_layer_weights(config.num_hidden_layers)
+                dummy_layer_weights.requires_grad_(False)
+                self._adapter_to_output_layer_weights = lambda: dummy_layer_weights
             # self.adapter_to_output_layer_weights = nn.Parameter(torch.ones(num_adapter_to_output_layers) / num_adapter_to_output_layers)
             # config.layerdrop = 0.0
             # Don't use LayerDrop at here
@@ -441,8 +477,11 @@ class AdaLayerToOutWavLMEncoder(WavLMEncoder):
             #     hidden_states = (hidden_states * norm_weights.view(-1, 1, 1)).sum(dim=1)
             # else:
             #     hidden_states = hidden_states.mean(dim=1)
-            norm_weights = F.softmax(self.adapter_to_output_layer_weights, dim=-1)
-            hidden_states = (hidden_states * norm_weights.view(-1, 1, 1)).sum(dim=1)
+            if self.use_l_adapters_only:
+                hidden_states = hidden_states.mean(dim=1)
+            else:
+                norm_weights = F.softmax(self.adapter_to_output_layer_weights, dim=-1)
+                hidden_states = (hidden_states * norm_weights.view(-1, 1, 1)).sum(dim=1)
             
         if not return_dict:
             return tuple(v for v in [hidden_states, all_hidden_states, all_self_attentions] if v is not None)
@@ -503,11 +542,26 @@ def _classifier(model: "AdaWavLMForSequenceClassification"):
         )
     return nn.Linear(config.classifier_proj_size, config.num_labels)
 
+def _expand_head(module: CLAdapter, task_name: str, config: CLWavLMConfig):
+    if module.current_task:
+        head: ExpandingHead = module.adapters[module.current_task]
+    else:
+        head = ExpandingHead(config.classifier_proj_size)
+    if task_name not in head.slices:
+        head.expand(task_name, config)
+    else:
+        head.current_task = task_name
+    head.requires_grad_(True)
+    return head
+
 def new_classifier(module: CLAdapter, task_name: str, config: CLWavLMConfig, model: "AdaWavLMForSequenceClassification"):
-    classifier = _classifier(model)
-    _mimic_init_weights(classifier, config)
-    classifier = _average_weights(classifier, module, task_name, config.cl_head_init)
-    return classifier
+    if config.head_expanding:
+        return _expand_head(module, task_name, config)
+    else:
+        classifier = _classifier(model)
+        _mimic_init_weights(classifier, config)
+        classifier = _average_weights(classifier, module, task_name, config.cl_head_init)
+        return classifier
 
 # _first_task_name = None
 # def check_cl_init(func: Callable[Concatenate[str, P], None]) -> Callable[Concatenate[str, P], None]:
@@ -732,6 +786,8 @@ def ensure_task_head(model: AdaWavLMForSequenceClassification, task_name: str, d
     classifier = model.classifier
     if not isinstance(projector, CLAdapter):
         return
+    if model.config.head_state != AdapterState.CL:
+        return
     if task_name not in projector.adapters or task_name not in classifier.adapters:
         _add_task_head(model, task_name)
         if device:
@@ -742,6 +798,9 @@ def ensure_task_head(model: AdaWavLMForSequenceClassification, task_name: str, d
             return
         projector.current_task = task_name
         classifier.current_task = task_name
+        if model.config.head_expanding:
+            head: ExpandingHead = classifier.adapters[classifier.current_task]
+            head.current_task = task_name
     return classifier._previous_task
 
 class ModelAdaptiveAvgPool1d(nn.AdaptiveAvgPool1d):
@@ -765,3 +824,53 @@ class ModelAdaptiveMaxPool1d(nn.AdaptiveMaxPool1d):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return F.adaptive_max_pool1d(input, self.model.config.num_labels, self.return_indices) # Adaptive with different num_labels  
+
+
+class ExpandingHead(nn.Module):
+
+    def __init__(self, in_features: int, 
+                 device: torch.device | None = None,
+                 dtype: torch.dtype | None = None):
+        super().__init__()
+        self.slices: dict[str, slice] = {}
+        self.current_task: str | None = None
+        self.in_features = in_features
+        self._device = device
+        self._dtype = dtype
+        self.total_out_features = 0
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+
+            self.linear = nn.Linear(self.in_features, 0, device=self._device, dtype=self._dtype)
+
+    def expand(self, task_name: str, config: CLWavLMConfig):
+        num_labels = config.num_labels
+        self.current_task = task_name
+        old_linear = self.linear
+        old_end = self.total_out_features
+        self.total_out_features += num_labels
+        self.slices[task_name] = slice(old_end, self.total_out_features)
+
+        self.linear = nn.Linear(self.in_features, self.total_out_features, device=self._device, dtype=self._dtype)
+        with torch.no_grad():
+            _mimic_init_weights(self.linear, config)
+            self.linear.weight[:old_end, :] = old_linear.weight  
+            self.linear.bias[:old_end] = old_linear.bias
+
+        # self.linear.requires_grad_(True)
+
+        logger.info(f"Expand head with {task_name}. Total num_labels: {old_end} => {self.total_out_features}")
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        if self.linear.out_features:
+            hidden_states = self.linear(hidden_states)
+            _slice: slice = self.slices.get(self.current_task, slice(None))
+            # if len(self.slices) > 1 and self.training:
+            #     breakpoint()
+            # if _slice.start and _slice.start > 0:
+            #     left = hidden_states[:, 0:_slice.start]
+            #     left.grad = None
+            return hidden_states[:, _slice]
+        return hidden_states
+
+    

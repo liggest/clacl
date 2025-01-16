@@ -66,6 +66,8 @@ class CLConfig(BaseModel):
     layer_weights_init: list[str | CLInitSpecials] = [CLInitSpecials.Self]
     head_init: list[str | CLInitSpecials] = [CLInitSpecials.Self]
 
+    head_expanding: bool = False
+
 class CLSCLConfig(TaskConfig):
     model_config = ConfigDict(extra = "allow")
 
@@ -125,6 +127,7 @@ class CLTask(TaskBase):
             "cl_l_adapter_init": config.cl.l_adapter_init,
             "cl_layer_weights_init": config.cl.layer_weights_init,
             "cl_head_init": config.cl.head_init,
+            "head_expanding": config.cl.head_expanding,
         }
 
     def init_subs(self):

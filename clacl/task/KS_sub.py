@@ -136,7 +136,7 @@ class KSSubTrainer(SubTrainer[KSSubTask]):
 
         output: SequenceClassifierOutput = self.task.model(**inputs)
         
-        logits = output.logits.cpu()
+        logits = output.logits.cpu() # [batch_size, num_labels]
         # print("logits:", logits.size())
 
         loss = phase.loss(self.loss_function, logits, targets)

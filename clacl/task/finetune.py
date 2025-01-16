@@ -12,7 +12,7 @@ import tomli
 import tomli_w
 from transformers.models.wavlm import WavLMForSequenceClassification
 
-from clacl.model.wavlm_cl import AdapterState
+from clacl.model.wavlm_cl import AdapterState, LComponentState
 from clacl.task.common import WavMLClassificationTask as TaskBase
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
 from clacl.task.common import TaskConfig, _init_config
@@ -183,7 +183,7 @@ class FinetuningSubTaskWrapper(SubTask[TSubTaskConfig]):
             "label2id": _model_config["label2id"],
             "num_labels": _model_config["num_labels"],
             "classifier_proj_size": _model_config["classifier_proj_size"],
-            "use_weighted_layer_sum": _model_config["layer_weights_only"]
+            "use_weighted_layer_sum": _model_config["l_adapter_component"] == LComponentState.LayerWeights
         }
 
     def _model(self):

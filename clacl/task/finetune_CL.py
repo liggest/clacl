@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from functools import cached_property
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict #, Field
 import torch.nn as nn
 from transformers.models.wavlm import WavLMForSequenceClassification
 
@@ -20,15 +20,15 @@ from clacl.util import logger
 
 # SubConfigs = {k: v.__class__.with_all_fields() for k, v in SubConfigs.items()}
 
-class FinetuningModelConfig(ModelConfig):
-    e_adapter: AdapterState = AdapterState.Missing
-    l_adapter: AdapterState = AdapterState.Missing
-    head: AdapterState = AdapterState.TuneAll
+# class FinetuningModelConfig(ModelConfig):
+#     e_adapter: AdapterState = AdapterState.Missing
+#     l_adapter: AdapterState = AdapterState.Missing
+#     head: AdapterState = AdapterState.TuneAll
 
-    layer_weights_only: bool = Field(default=False, alias="use_weighted_layer_sum")
+#     # layer_weights_only: bool = Field(default=False, alias="use_weighted_layer_sum")
 
-    head_adaptive_pool: AdaptivePoolState = AdaptivePoolState.Avg
-    head_adaptive_pool_size: int = 128
+#     head_adaptive_pool: AdaptivePoolState = AdaptivePoolState.Avg
+#     head_adaptive_pool_size: int = 128
 
 class FinetuningCLConfig(TaskConfig):
     model_config = ConfigDict(extra = "allow")
@@ -37,7 +37,14 @@ class FinetuningCLConfig(TaskConfig):
 
     dataset: dict[str, UDatasetConfig] = Datasets
 
-    model: ModelConfig = FinetuningModelConfig()
+    # model: ModelConfig = FinetuningModelConfig()
+    model: ModelConfig = ModelConfig(
+        e_adapter = AdapterState.Missing,
+        l_adapter = AdapterState.Missing,
+        head = AdapterState.TuneAll,
+        head_adaptive_pool = AdaptivePoolState.Avg,
+        head_adaptive_pool_size = 128
+    )
     train: TrainConfig = TrainConfig()
     learning_rate: LearningRate = LearningRate()
 

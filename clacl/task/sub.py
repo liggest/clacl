@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from pydantic import BaseModel, SerializeAsAny
 
-from clacl.model.wavlm_cl import AdapterState, AdaptivePoolState
+from clacl.model.wavlm_cl import AdapterState, AdaptivePoolState, LComponentState
 from clacl.model.wavlm_cl import add_task, ensure_task_head, cl_modules
 from clacl.task.common import WavMLClassificationTask as TaskBase, TaskConfig
 from clacl.task.common import WavMLClassificationTrainer as TrainerBase
@@ -39,8 +39,9 @@ class ModelConfig(BaseModel):
     l_adapter: AdapterState = AdapterState.CL
     head: AdapterState = AdapterState.CL
 
-    layer_weights_only: bool = False
-    # use layer weights without l adapter (follow l_adapter state)
+    l_adapter_component: LComponentState = LComponentState.All
+    # Components (adapters? layer weights?) of l adapter
+    # layer_weights_only: bool = False
 
     head_adaptive_pool: AdaptivePoolState = AdaptivePoolState.Missing
     head_adaptive_pool_size: int = 0
@@ -153,7 +154,8 @@ class SubTask(TaskBase, Generic[TSubTaskConfig]):
             "e_adapter_state": self.config.model.e_adapter,
             "l_adapter_state": self.config.model.l_adapter,
             "head_state": self.config.model.head,
-            "layer_weights_only": self.config.model.layer_weights_only,
+            "l_adapter_component": self.config.model.l_adapter_component,
+            # "layer_weights_only": self.config.model.layer_weights_only,
             "head_adaptive_pool": self.config.model.head_adaptive_pool,
             "head_adaptive_pool_size": self.config.model.head_adaptive_pool_size,
         }
