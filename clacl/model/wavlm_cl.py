@@ -794,13 +794,15 @@ def ensure_task_head(model: AdaWavLMForSequenceClassification, task_name: str, d
             projector.to(device)
             classifier.to(device)
     else:
-        if projector.current_task == task_name and classifier.current_task == task_name:
-            return
-        projector.current_task = task_name
-        classifier.current_task = task_name
+        to_change = (projector.current_task != task_name or classifier.current_task != task_name)
+        if to_change:
+            projector.current_task = task_name
+            classifier.current_task = task_name
         if model.config.head_expanding:
             head: ExpandingHead = classifier.adapters[classifier.current_task]
             head.current_task = task_name
+        if not to_change:
+            return
     return classifier._previous_task
 
 class ModelAdaptiveAvgPool1d(nn.AdaptiveAvgPool1d):
