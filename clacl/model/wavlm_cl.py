@@ -82,6 +82,8 @@ class CLWavLMConfig(CustomWavLMConfig):
         if self.head_expanding:
             assert self.head_state == AdapterState.CL
 
+        self.freeze_layer_norm: bool = kw.pop("freeze_layer_norm", False)
+
     @property
     def l_adapter_state(self):
         return self.l_adapter_state_

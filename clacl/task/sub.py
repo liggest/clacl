@@ -48,6 +48,7 @@ class ModelConfig(BaseModel):
 
 class TrainConfig(BaseModel):
     log_layer_weights: bool = True
+    freeze_layer_norm: bool = False
 
 class SubTaskConfig(TaskConfig):
     type: str = "SubTask"
@@ -438,7 +439,7 @@ def edit_model(model: AdaWavLMForSequenceClassification):
     
     layer_names = [f'layers.{k}' for k in range(0,12)]
     for name, param in model.named_parameters():
-        flag = any(idx in name for idx in layer_names)
+        flag = any(idx in name for idx in layer_names) and not model.config.freeze_layer_norm
         is_not_frozen = param.requires_grad
         
         if is_not_frozen and ('projector' in name or 'classifier' in name):
