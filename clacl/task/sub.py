@@ -147,6 +147,7 @@ class SubTask(TaskBase, Generic[TSubTaskConfig]):
     @cached_property
     def model_config(self):
         assert self.config.model
+        assert self.config.train
         return {
             "id2label": {},
             "label2id": {},
@@ -159,6 +160,8 @@ class SubTask(TaskBase, Generic[TSubTaskConfig]):
             # "layer_weights_only": self.config.model.layer_weights_only,
             "head_adaptive_pool": self.config.model.head_adaptive_pool,
             "head_adaptive_pool_size": self.config.model.head_adaptive_pool_size,
+            
+            "freeze_layer_norm": self.config.train.freeze_layer_norm,
         }
 
     def _model(self):
