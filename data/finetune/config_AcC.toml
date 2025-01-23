@@ -55,6 +55,6 @@ encoder = 0.0001
 
 [wandb]
 enable = true
-project = "clacl_CLSCL_test"
+project = "clacl_CLSCL"
 name = "FT_AcC_sub"
 notes = "Test run"

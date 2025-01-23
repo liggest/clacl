@@ -1,3 +1,4 @@
+# for SEED in 42 233 2025
 for SEED in 233 2025 10086
     do
         python -m clacl.run.CLSCL --config data/CLSCL/config_5.toml --seed $SEED
@@ -7,4 +8,6 @@ for SEED in 233 2025 10086
         # python -m clacl.run.finetune --config data/finetune/config_ER.toml --seed $SEED
         # python -m clacl.run.finetune --config data/finetune/config_AcC.toml --seed $SEED
         # python -m clacl.run.finetune --config data/finetune/config_LID.toml --seed $SEED
+        # python -m clacl.run.CLSCL --config data/CLSCL/config_KS6.toml --seed $SEED
+        # python -m clacl.run.finetune_CL --config data/finetune_CL/config_KS6.toml --seed $SEED
     done

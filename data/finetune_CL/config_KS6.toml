@@ -1,5 +1,5 @@
 [task]
-name = "CLSCL"
+name = "FinetuningCL"
 seed = 42
 sequence = [
     "KS0",
@@ -15,21 +15,11 @@ type = "SpeechCommands"
 path = "../../dataset/SpeechCommands/speech_commands_v0.01"
 
 [task.model]
-e_adapter = "cl"
-# e_adapter = "tune_all"
-# e_adapter = "missing"
-l_adapter = "cl"
-# l_adapter = "tune_all"
-# l_adapter = "missing"
-head = "cl"
-# head = "tune_all"
+e_adapter = "missing"
+l_adapter = "missing"
+head = "tune_all"
 l_adapter_component = "all"
-# l_adapter_component = "adapters"
-# l_adapter_component = "layer_weights"
-# head_adaptive_pool = "missing"
 head_adaptive_pool = "avg"
-# head_adaptive_pool = "max"
-# head_adaptive_pool_size = 0
 head_adaptive_pool_size = 32
 
 [task.cl]
@@ -45,11 +35,13 @@ layer_weights_init = [
 head_init = [
     "Self",
 ]
-# head_expanding = true
 head_expanding = false
-
 [task.train]
 log_layer_weights = true
+
+[task.learning_rate]
+down = 0.0005
+encoder = 0.0001
 
 [task.sub.KS0]
 name = "KS0"
@@ -59,16 +51,16 @@ type = "KSSubTask"
 classes = [
     "tree", 
     "happy", 
-    "nine", 
+    "nine",
     "marvin", 
     "bird", 
     "on", 
     "right", 
-    "bed", 
+    "bed",
     "three", 
     "four",
     "go", 
-    "two", 
+    "two",
     "zero",
     "eight", 
     "dog"
@@ -234,5 +226,5 @@ gamma = 0.9
 [wandb]
 enable = true
 project = "clacl_KS_CL"
-name = "KS6_pool"
+name = "KS6_FT"
 notes = "Test run"

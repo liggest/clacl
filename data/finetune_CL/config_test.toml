@@ -37,7 +37,7 @@ path = "../../dataset/ASVspoof2019/LA"
 e_adapter = "missing"
 l_adapter = "missing"
 head = "tune_all"
-layer_weights_only = false
+l_adapter_component = "all"
 head_adaptive_pool = "avg"
 head_adaptive_pool_size = 128
 

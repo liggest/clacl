@@ -43,25 +43,35 @@ l_adapter = "cl"
 head = "cl"
 # head = "tune_all"
 l_adapter_component = "all"
-# head_adaptive_pool = "missing"
-head_adaptive_pool = "avg"
+head_adaptive_pool = "missing"
+# head_adaptive_pool = "avg"
 # head_adaptive_pool = "max"
-# head_adaptive_pool_size = 0
-head_adaptive_pool_size = 128
+head_adaptive_pool_size = 0
+# head_adaptive_pool_size = 128
 
 [task.cl]
 e_adapter_init = [
+    # "Last",
+    # "All",
     "Self",
 ]
 l_adapter_init = [
+    # "Last",
+    # "All",
     "Self",
 ]
 layer_weights_init = [
+    # "Last",
+    # "All",
     "Self",
 ]
 head_init = [
+    # "Last",
+    # "All",
     "Self",
 ]
+head_expanding = true
+# head_expanding = false
 
 [task.train]
 log_layer_weights = true
@@ -272,6 +282,6 @@ eta_min = 1e-06
 
 [wandb]
 enable = true
-project = "clacl_CLSCL"
-name = "CLSCL_5_avg_pool"
+project = "clacl_CLSCL_test"
+name = "CLSCL_5_head_expanding"
 notes = "Test run"

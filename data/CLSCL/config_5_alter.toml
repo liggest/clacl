@@ -1,11 +1,11 @@
 [task]
-name = "CLSCL_5"
+name = "CLSCL_5A"
 seed = 42
 sequence = [
-    "KS_sub",
-    "IC_sub",
     "ER_sub",
     "AcC_sub",
+    "KS_sub",
+    "FSD_sub",
     "LID_sub",
 ]
 
@@ -43,11 +43,11 @@ l_adapter = "cl"
 head = "cl"
 # head = "tune_all"
 l_adapter_component = "all"
-# head_adaptive_pool = "missing"
-head_adaptive_pool = "avg"
+head_adaptive_pool = "missing"
+# head_adaptive_pool = "avg"
 # head_adaptive_pool = "max"
-# head_adaptive_pool_size = 0
-head_adaptive_pool_size = 128
+head_adaptive_pool_size = 0
+# head_adaptive_pool_size = 128
 
 [task.cl]
 e_adapter_init = [
@@ -62,6 +62,8 @@ layer_weights_init = [
 head_init = [
     "Self",
 ]
+# head_expanding = true
+head_expanding = false
 
 [task.train]
 log_layer_weights = true
@@ -272,6 +274,7 @@ eta_min = 1e-06
 
 [wandb]
 enable = true
-project = "clacl_CLSCL"
-name = "CLSCL_5_avg_pool"
+project = "clacl_CLSCL_test"
+# project = "clacl_CLSCL"
+name = "CLSCL_5A"
 notes = "Test run"

@@ -49,6 +49,6 @@ encoder = 5e-05
 
 [wandb]
 enable = true
-project = "clacl_CLSCL_test"
+project = "clacl_CLSCL"
 name = "FT_FSD_sub"
 notes = "Test run"

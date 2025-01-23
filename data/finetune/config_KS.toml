@@ -9,6 +9,21 @@ optimizer = "Adam"
 seed = 42
 type = "KSSubTask"
 classes = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",
+    "nine",
+    "three",
+    "bed",
+    "wow",
+    "happy",
     "four",
     "dog",
     "cat",
@@ -61,6 +76,6 @@ encoder = 0.0001
 
 [wandb]
 enable = true
-project = "clacl_CLSCL_test"
+project = "clacl_CLSCL"
 name = "FT_KS_sub"
 notes = "Test run"

@@ -256,7 +256,7 @@ classes = [
     "bonafide",
     "spoof",
 ]
-epochs = 8
+epochs = 4
 batch_size = 16
 
 [task.sub.FSD_sub.data]
@@ -272,11 +272,11 @@ layer_norm = 1e-05
 
 [task.sub.FSD_sub.scheduler]
 type = "CosineAnnealingLR"
-T_max = 4
+T_max = 2
 eta_min = 1e-06
 
 [wandb]
 enable = true
 project = "clacl_CLSCL_test"
-name = "CLSCL_5_FT_head_only_avg"
+name = "CLSCL_5_FT_avg"
 notes = "Test run"

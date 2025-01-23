@@ -15,14 +15,14 @@ type = "SpeechCommands"
 path = "../../dataset/SpeechCommands/speech_commands_v0.01"
 
 [task.model]
-e_adapter = "cl"
-# e_adapter = "tune_all"
+# e_adapter = "cl"
+e_adapter = "tune_all"
 # e_adapter = "missing"
-l_adapter = "cl"
-# l_adapter = "tune_all"
+# l_adapter = "cl"
+l_adapter = "tune_all"
 # l_adapter = "missing"
-head = "cl"
-# head = "tune_all"
+# head = "cl"
+head = "tune_all"
 l_adapter_component = "all"
 # l_adapter_component = "adapters"
 # l_adapter_component = "layer_weights"
@@ -234,5 +234,5 @@ gamma = 0.9
 [wandb]
 enable = true
 project = "clacl_KS_CL"
-name = "KS6_pool"
+name = "KS6_FT_all"
 notes = "Test run"
