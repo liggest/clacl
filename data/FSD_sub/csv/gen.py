@@ -7,7 +7,7 @@ import sys
 import pandas as pd
 
 here = Path(__file__).parent  # csv/
-# -> AcC_sub/ -> data/ -> clacl/
+# -> FSD_sub/ -> data/ -> clacl/
 root_path = here.parent.parent.parent
 
 sys.path.append(root_path.as_posix())
