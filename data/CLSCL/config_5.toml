@@ -75,6 +75,8 @@ head_expanding = false
 
 [task.train]
 log_layer_weights = true
+# freeze_layer_norm = true
+freeze_layer_norm = false
 
 [task.sub.KS_sub]
 name = "KS_sub"

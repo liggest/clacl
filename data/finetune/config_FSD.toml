@@ -32,7 +32,7 @@ type = "ASVspoof2019"
 path = "../../dataset/ASVspoof2019/LA"
 
 [task.sub.learning_rate]
-down = 0.0005
+down = 0.0001
 adapter_to_output = 0.0
 adapter_layer_weights = 0.0
 adapter_ff = 0.0
@@ -44,7 +44,7 @@ T_max = 2
 eta_min = 1e-06
 
 [task.learning_rate]
-down = 0.0005
+down = 0.0001
 encoder = 5e-05
 
 [wandb]
