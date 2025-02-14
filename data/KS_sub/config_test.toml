@@ -68,7 +68,7 @@ type = "ExponentialLR"
 gamma = 0.9
 
 [wandb]
-enable = false
+enable = true
 project = "clacl_CLSCL_test"
 name = "KS_sub"
 notes = "Test run"

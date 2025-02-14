@@ -1,0 +1,259 @@
+[task]
+name = "FinetuningCL"
+seed = 42
+sequence = [
+    "ER_sub",
+    "AcC_sub",
+    "KS_sub",
+    "FSD_sub",
+    "LID_sub",
+]
+
+[task.dataset.SpeechCommands]
+type = "SpeechCommands"
+path = "../../dataset/SpeechCommands/speech_commands_v0.01"
+
+[task.dataset.FluentSpeechCommands]
+type = "FluentSpeechCommands"
+path = "../../dataset/FluentSpeechCommands"
+
+[task.dataset.IEMOCAP]
+type = "IEMOCAP"
+path = "../../dataset/IEMOCAP"
+
+[task.dataset.AccentDB]
+type = "AccentDB"
+path = "../../dataset/AccentDB/accentdb_extended_processed"
+
+[task.dataset.VoxForge]
+type = "VoxForge"
+path = "../../dataset/VoxForge/VoxForge/data"
+
+[task.dataset.ASVspoof2019]
+type = "ASVspoof2019"
+path = "../../dataset/ASVspoof2019/LA"
+
+[task.model]
+e_adapter = "missing"
+l_adapter = "missing"
+head = "tune_all"
+l_adapter_component = "all"
+head_adaptive_pool = "avg"
+head_adaptive_pool_size = 128
+
+[task.train]
+log_layer_weights = true
+
+[task.learning_rate]
+down = 0.0005
+encoder = 0.0001
+
+[task.sub.KS_sub]
+name = "KS_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "KSSubTask"
+classes = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",
+    "nine",
+    "three",
+    "bed",
+    "wow",
+    "happy",
+    "four",
+    "dog",
+    "cat",
+    "five",
+    "tree",
+    "one",
+    "eight",
+    "bird",
+    "seven",
+    "six",
+    "two",
+    "marvin",
+    "sheila",
+    "house",
+    "zero",
+]
+epochs = 10
+batch_size = 32
+
+[task.sub.KS_sub.data]
+dataset = "SpeechCommands"
+csv_path = "data/KS_CIL/csv"
+
+[task.sub.KS_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.KS_sub.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.IC_sub]
+name = "IC_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "ICSubTask"
+epochs = 7
+batch_size = 16
+
+[task.sub.IC_sub.data]
+dataset = "FluentSpeechCommands"
+csv_path = "data/IC/csv"
+
+[task.sub.IC_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.IC_sub.scheduler]
+type = "LambdaLR"
+step = [
+    0.1,
+    0.5,
+    0.7,
+    1.0,
+    0.5,
+    0.3,
+    0.1,
+    0.0,
+]
+
+[task.sub.ER_sub]
+name = "ER_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "ERSubTask"
+epochs = 20
+batch_size = 16
+
+[task.sub.ER_sub.data]
+dataset = "IEMOCAP"
+csv_path = "data/ER_sub/csv"
+
+[task.sub.ER_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 0.0001
+adapter_layer_weights = 0.0001
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.ER_sub.scheduler]
+type = "StepLR"
+step_size = 10
+gamma = 0.1
+
+[task.sub.AcC_sub]
+name = "AcC_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "AcCSubTask"
+classes = [
+    "american",
+    "australian",
+    "bangla",
+    "british",
+    "indian",
+    "malayalam",
+    "odiya",
+    "telugu",
+    "welsh",
+]
+epochs = 10
+batch_size = 16
+
+[task.sub.AcC_sub.data]
+dataset = "AccentDB"
+csv_path = "data/AcC_sub/csv"
+
+[task.sub.AcC_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.AcC_sub.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.LID_sub]
+name = "LID_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "LIDSubTask"
+classes = [
+    "de",
+    "en",
+    "es",
+    "fr",
+    "it",
+    "ru",
+]
+epochs = 10
+batch_size = 16
+
+[task.sub.LID_sub.data]
+dataset = "VoxForge"
+csv_path = "data/LID_sub/csv"
+
+[task.sub.LID_sub.learning_rate]
+down = 0.0005
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.LID_sub.scheduler]
+type = "ExponentialLR"
+gamma = 0.9
+
+[task.sub.FSD_sub]
+name = "FSD_sub"
+pretrained_name = "microsoft/wavlm-base-plus"
+optimizer = "Adam"
+type = "FSDSubTask"
+classes = [
+    "bonafide",
+    "spoof",
+]
+epochs = 4
+batch_size = 16
+
+[task.sub.FSD_sub.data]
+dataset = "ASVspoof2019"
+csv_path = "data/FSD_sub/csv"
+
+[task.sub.FSD_sub.learning_rate]
+down = 0.0001
+adapter_to_output = 1e-05
+adapter_layer_weights = 1e-05
+adapter_ff = 1e-05
+layer_norm = 1e-05
+
+[task.sub.FSD_sub.scheduler]
+type = "CosineAnnealingLR"
+T_max = 2
+eta_min = 1e-06
+
+[wandb]
+enable = true
+project = "clacl_CLSCL_test"
+name = "FT_CL_5A"
+notes = "Test run"
