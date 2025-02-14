@@ -1,6 +1,6 @@
 # Continual Learning for Audio CLassification (CLACL)
 
-> Currently for study purpose and focusing on speech classification
+> Currently for study purposes, focusing on speech classification.
 
 ## Installation
 ```
@@ -11,6 +11,10 @@ In some case, you may want to install PyTorch manually.
 ```
 pip install torch torchaudio
 ```
+
+## Dataset
+
+Please refer to [data/README.md](./data/README.md) for details.
 
 ## Running a task
 
